@@ -1,15 +1,15 @@
-use risp::{RispError, RispForm};
+use risp::{RispError, ast::Ast};
 use rustyline::{DefaultEditor, error::ReadlineError};
 
-fn read(input: &str) -> Result<RispForm, RispError> {
+fn read(input: &str) -> Result<Ast, RispError> {
     risp::read_str(input)
 }
 
-fn eval(input: RispForm) -> Result<RispForm, RispError> {
+fn eval(input: Ast) -> Result<Ast, RispError> {
     Ok(input)
 }
 
-fn print(input: RispForm) -> String {
+fn print(input: Ast) -> String {
     risp::pr_str(&input)
 }
 
@@ -33,7 +33,7 @@ fn main() {
                     rl.save_history(".risp-history").expect("saving history");
                     match read_eval_print(&line) {
                         Ok(result) => println!("{}", result),
-                        Err(e) => eprintln!("{:?}", e),
+                        Err(e) => eprintln!("{}", e),
                     }
                 }
             }

@@ -4,27 +4,39 @@
 //     str::{CharIndices, Chars},
 // };
 
+pub mod ast;
 mod reader;
 
-pub use reader::{read_str, pr_str};
+use thiserror::Error;
+pub use reader::{pr_str, read_str};
 
 #[derive(Clone, Debug)]
-pub enum RispForm {
-    Atom(String),
-    List(Vec<RispForm>),
-    Nil,
+pub enum ListKind {
+    List,
+    Vector,
+    HashMap,
 }
 
 #[derive(Clone, Debug)]
+pub enum RawForm {
+    Atom(String),
+    List(ListKind, Vec<RawForm>),
+}
+
+#[derive(Clone, Debug, Error)]
 pub enum RispError {
+    #[error("{0}")]
     Reason(String),
+    #[error("unexpected end of input")]
+    Eof,
+    #[error("unbalanced list")]
+    UnclosedList,
 }
 
 // #[derive(Clone, Debug)]
 // pub struct RispEnv {
 //     data: HashMap<RispIdent, RispToken>,
 // }
-
 
 #[cfg(test)]
 mod test {
