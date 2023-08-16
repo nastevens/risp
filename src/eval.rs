@@ -1,4 +1,4 @@
-use serde::de::{Deserialize, Deserializer, IntoDeserializer, Unexpected, Expected};
+use serde::de::{value::SeqDeserializer, Deserialize, Deserializer, IntoDeserializer};
 
 use crate::{ast::Ident, Env, Error, Form, FormKind, Result};
 
@@ -156,45 +156,20 @@ impl serde::de::Error for crate::Error {
     }
 }
 
-macro_rules! deserialize_number {
-    ($method:ident) => {
-        fn $method<V>(self, visitor: V) -> std::result::Result<V::Value, Error>
-        where
-            V: serde::de::Visitor<'de>,
-        {
-            match self.kind {
-                FormKind::Integer(n) => n.into_deserializer().$method(visitor),
-                FormKind::Float(n) => n.into_deserializer().$method(visitor),
-                _ => self.deserialize_any(visitor),
-            }
-        }
-    };
+impl<'de> IntoDeserializer<'de, Error> for Form {
+    type Deserializer = Self;
+
+    fn into_deserializer(self) -> Self::Deserializer {
+        self
+    }
 }
 
-impl Form {
-    fn invalid_type<E>(&self, expected: &dyn Expected) -> E
-    where
-        E: serde::de::Error,
-    {
-        serde::de::Error::invalid_type(self.unexpected(), expected)
-    }
-
-    fn unexpected(&self) -> Unexpected {
-        match self.kind {
-            FormKind::Nil => Unexpected::Unit,
-            FormKind::Boolean(b) => Unexpected::Bool(b),
-            FormKind::Symbol(_) => todo!(),
-            FormKind::Integer(_) => todo!(),
-            FormKind::Float(_) => todo!(),
-            FormKind::String(_) => todo!(),
-            FormKind::Keyword(_) => todo!(),
-            FormKind::List(_) => todo!(),
-            FormKind::Vector(_) => todo!(),
-            FormKind::HashMap(_) => todo!(),
-            FormKind::NativeFn { name, f } => todo!(),
-            FormKind::Fn => todo!(),
-        }
-    }
+fn visit_array<'de, V>(list: Vec<Form>, visitor: V) -> std::result::Result<V::Value, Error>
+where
+    V: serde::de::Visitor<'de>,
+{
+    let mut deserializer = SeqDeserializer::new(list.into_iter());
+    visitor.visit_seq(&mut deserializer)
 }
 
 impl<'de> Deserializer<'de> for Form {
@@ -205,186 +180,25 @@ impl<'de> Deserializer<'de> for Form {
         V: serde::de::Visitor<'de>,
     {
         match self.kind {
-            FormKind::Nil => todo!(),
-            FormKind::Boolean(_) => todo!(),
+            FormKind::Nil => visitor.visit_unit(),
+            FormKind::Boolean(b) => visitor.visit_bool(b),
             FormKind::Symbol(_) => todo!(),
-            FormKind::Integer(_) => todo!(),
-            FormKind::Float(_) => todo!(),
-            FormKind::String(_) => todo!(),
+            FormKind::Integer(i) => visitor.visit_i64(i),
+            FormKind::Float(f) => visitor.visit_f64(f),
+            FormKind::String(s) => visitor.visit_string(s),
             FormKind::Keyword(_) => todo!(),
-            FormKind::List(_) => todo!(),
+            FormKind::List(inner) => visit_array(inner, visitor),
             FormKind::Vector(_) => todo!(),
             FormKind::HashMap(_) => todo!(),
-            FormKind::NativeFn { name, f } => todo!(),
+            FormKind::NativeFn { name: _, f: _ } => todo!(),
             FormKind::Fn => todo!(),
         }
     }
 
-    fn deserialize_bool<V>(self, visitor: V) -> std::result::Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        match self.kind {
-            FormKind::Boolean(b) => visitor.visit_bool(b),
-            _ => Err(self.invalid_type(&visitor)),
-        }
-    }
-
-    deserialize_number!(deserialize_i8);
-    deserialize_number!(deserialize_i16);
-    deserialize_number!(deserialize_i32);
-    deserialize_number!(deserialize_i64);
-    deserialize_number!(deserialize_u8);
-    deserialize_number!(deserialize_u16);
-    deserialize_number!(deserialize_u32);
-    deserialize_number!(deserialize_u64);
-    deserialize_number!(deserialize_f32);
-    deserialize_number!(deserialize_f64);
-
-    fn deserialize_char<V>(self, visitor: V) -> std::result::Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_str<V>(self, visitor: V) -> std::result::Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_string<V>(self, visitor: V) -> std::result::Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_bytes<V>(self, visitor: V) -> std::result::Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_byte_buf<V>(self, visitor: V) -> std::result::Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_option<V>(self, visitor: V) -> std::result::Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_unit<V>(self, visitor: V) -> std::result::Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_unit_struct<V>(
-        self,
-        name: &'static str,
-        visitor: V,
-    ) -> std::result::Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_newtype_struct<V>(
-        self,
-        name: &'static str,
-        visitor: V,
-    ) -> std::result::Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_seq<V>(self, visitor: V) -> std::result::Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_tuple<V>(
-        self,
-        len: usize,
-        visitor: V,
-    ) -> std::result::Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_tuple_struct<V>(
-        self,
-        name: &'static str,
-        len: usize,
-        visitor: V,
-    ) -> std::result::Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_map<V>(self, visitor: V) -> std::result::Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_struct<V>(
-        self,
-        name: &'static str,
-        fields: &'static [&'static str],
-        visitor: V,
-    ) -> std::result::Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_enum<V>(
-        self,
-        name: &'static str,
-        variants: &'static [&'static str],
-        visitor: V,
-    ) -> std::result::Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_identifier<V>(self, visitor: V) -> std::result::Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
-    }
-
-    fn deserialize_ignored_any<V>(self, visitor: V) -> std::result::Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        todo!()
+    serde::forward_to_deserialize_any! {
+        bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
+        bytes byte_buf option unit unit_struct newtype_struct seq tuple
+        tuple_struct map struct enum identifier ignored_any
     }
 }
 
@@ -405,8 +219,6 @@ pub fn eval_ast(form: Form, env: &mut Env) -> Result<Form> {
         other => return Ok(other),
     }
 }
-
-// fn apply() {}
 
 pub fn eval(form: Form, env: &mut Env) -> Result<Form> {
     let (called_as, evaluated) = match form.kind {
