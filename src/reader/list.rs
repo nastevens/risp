@@ -1,8 +1,9 @@
 use std::iter::Peekable;
 
-use crate::{ast::{Ast, self}, RispError};
-
-use super::ReadForm;
+use crate::{
+    ast::{Form, FormKind},
+    Error,
+};
 
 struct ListInner {
     start_symbol: &'static str,
@@ -21,9 +22,9 @@ impl ListInner {
         &self,
         token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
         f: F,
-    ) -> Option<Result<Ast, RispError>>
+    ) -> Option<Result<Form, Error>>
     where
-        F: FnOnce(Vec<Ast>) -> Ast,
+        F: FnOnce(Vec<Form>) -> Form,
     {
         assert_eq!(token_iter.next(), Some(self.start_symbol));
         let mut values = Vec::new();
@@ -35,42 +36,32 @@ impl ListInner {
             match super::read_form(token_iter) {
                 Some(Ok(ast)) => values.push(ast),
                 e @ Some(Err(_)) => break e,
-                None => break Some(Err(RispError::UnclosedList)),
+                None => break Some(Err(Error::UnbalancedList)),
             }
         }
     }
 }
 
-impl ReadForm for ast::List {
-    fn read_form<'a>(
-        token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
-    ) -> Option<Result<Ast, RispError>>
-    where
-        Self: Sized,
-    {
-        ListInner::new("(", ")").read(token_iter, ast::List::with_values)
-    }
-
+pub fn read_list<'a>(
+    token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
+) -> Option<Result<Form, Error>> {
+    ListInner::new("(", ")").read(token_iter, |values| Form {
+        kind: FormKind::List(values),
+    })
 }
 
-impl ReadForm for ast::Vector {
-    fn read_form<'a>(
-        token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
-    ) -> Option<Result<Ast, RispError>>
-    where
-        Self: Sized,
-    {
-        ListInner::new("[", "]").read(token_iter, ast::Vector::with_values)
-    }
+pub fn read_vector<'a>(
+    token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
+) -> Option<Result<Form, Error>> {
+    ListInner::new("[", "]").read(token_iter, |values| Form {
+        kind: FormKind::Vector(values),
+    })
 }
 
-impl ReadForm for ast::HashMap {
-    fn read_form<'a>(
-        token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
-    ) -> Option<Result<Ast, RispError>>
-    where
-        Self: Sized,
-    {
-        ListInner::new("{", "}").read(token_iter, ast::HashMap::with_values)
-    }
+pub fn read_hash_map<'a>(
+    token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
+) -> Option<Result<Form, Error>> {
+    ListInner::new("{", "}").read(token_iter, |values| Form {
+        kind: FormKind::HashMap(values),
+    })
 }

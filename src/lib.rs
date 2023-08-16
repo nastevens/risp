@@ -1,51 +1,36 @@
-// use std::{
-//     collections::HashMap,
-//     iter::Peekable,
-//     str::{CharIndices, Chars},
-// };
+// use std::{rc::Rc, any::Any};
 
 pub mod ast;
+pub mod core;
+pub mod eval;
+pub mod exec;
+pub mod format;
+mod env;
+// mod ptr;
 mod reader;
 
+pub use env::Env;
+pub use format::pr_str;
+pub use reader::read_str;
+pub use ast::{Form, FormKind};
 use thiserror::Error;
-pub use reader::{pr_str, read_str};
 
-#[derive(Clone, Debug)]
-pub enum ListKind {
-    List,
-    Vector,
-    HashMap,
-}
-
-#[derive(Clone, Debug)]
-pub enum RawForm {
-    Atom(String),
-    List(ListKind, Vec<RawForm>),
-}
+pub type Result<T> = std::result::Result<T, crate::Error>;
 
 #[derive(Clone, Debug, Error)]
-pub enum RispError {
-    #[error("{0}")]
-    Reason(String),
+pub enum Error {
     #[error("unexpected end of input")]
     Eof,
     #[error("unbalanced list")]
-    UnclosedList,
-}
-
-// #[derive(Clone, Debug)]
-// pub struct RispEnv {
-//     data: HashMap<RispIdent, RispToken>,
-// }
-
-#[cfg(test)]
-mod test {
-    // const STEP1_CASES: &[(&str, &str)] = &[("1", "1"), ("7", "7")];
-
-    // #[test]
-    // fn test_tokenize() {
-    //     for (input, output) in STEP1_CASES {
-    //         assert_eq!(output, super::tokenize(input));
-    //     }
-    // }
+    UnbalancedList,
+    #[error("unknown symbol {0}")]
+    UnknownSymbol(String),
+    #[error("invalid number {0}")]
+    InvalidNumber(String),
+    #[error("invalid argument")]
+    InvalidArgument,
+    #[error("serde error {0}")]
+    SerdeError(String),
+    #[error("tried to apply something that's not a function")]
+    InvalidApply,
 }

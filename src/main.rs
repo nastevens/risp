@@ -1,21 +1,32 @@
-use risp::{RispError, ast::Ast};
-use rustyline::{DefaultEditor, error::ReadlineError};
+use risp::{ast::Form, eval, Env, Error};
+use rustyline::{error::ReadlineError, DefaultEditor};
 
-fn read(input: &str) -> Result<Ast, RispError> {
+fn read(input: &str) -> Result<Form, Error> {
     risp::read_str(input)
 }
 
-fn eval(input: Ast) -> Result<Ast, RispError> {
-    Ok(input)
-}
+// fn eval(ast: Form, env: Env) -> Result<(Form, Env), Error> {
+// let mut ast = ast;
+// let mut env = env;
+// loop {
+//     let (new_ast, new_env) = Eval::eval(&ast, &env)?;
+//     ast = new_ast;
+//     env = new_env.unwrap_or(env);
+//     if ast.is_scalar() {
+//         break;
+//     }
+// }
+// Ok((ast, env))
+// }
 
-fn print(input: Ast) -> String {
+fn print(input: Form) -> String {
     risp::pr_str(&input)
 }
 
-fn read_eval_print(input: &str) -> Result<String, RispError> {
-    let ast = read(input)?;
-    let evaluated = eval(ast)?;
+fn read_eval_print(input: &str) -> Result<String, Error> {
+    let form = read(input)?;
+    let mut env = Env::new();
+    let evaluated = eval::eval(form, &mut env)?;
     Ok(print(evaluated))
 }
 
@@ -27,6 +38,7 @@ fn main() {
 
     loop {
         match rl.readline("user> ") {
+            Ok(line) if line.is_empty() => continue,
             Ok(line) => {
                 if line.len() > 0 {
                     let _ = rl.add_history_entry(&line);

@@ -11,8 +11,7 @@ use nom::{
 };
 
 use crate::{
-    ast::{self, Ast},
-    RispError,
+    ast::{Form, FormKind, Ident}, Error,
 };
 
 mod list;
@@ -60,154 +59,139 @@ pub fn tokenize(input: &str) -> IResult<&str, &str> {
     )(input)
 }
 
+fn read_nil<'a>(
+    token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
+) -> Option<Result<Form, Error>> {
+    token_iter.next().map(|value| {
+        assert_eq!(value, "nil");
+        Ok(Form {
+            kind: FormKind::Nil,
+        })
+    })
+}
+
+fn read_bool<'a>(
+    token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
+) -> Option<Result<Form, Error>> {
+    token_iter.next().map(|value| match value {
+        "true" => Ok(Form::boolean(true)),
+        "false" => Ok(Form::boolean(false)),
+        s => panic!("not a boolean: {}", s),
+    })
+}
+
+fn read_symbol<'a>(
+    token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
+) -> Option<Result<Form, Error>> {
+    token_iter.next().map(|name| {
+        Ok(Form {
+            kind: FormKind::Symbol(Ident::from_str(name)),
+        })
+    })
+}
+
+fn read_number<'a>(
+    token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
+) -> Option<Result<Form, Error>> {
+    token_iter.next().map(|s| {
+        str::parse::<i64>(s)
+            .map(|n| Form {
+                kind: FormKind::Integer(n),
+            })
+            .map_err(|_| Error::InvalidNumber(s.into()))
+    })
+}
+
+fn read_string<'a>(
+    token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
+) -> Option<Result<Form, Error>> {
+    token_iter.next().map(|value| {
+        Ok(Form {
+            kind: FormKind::String(value.to_string()),
+        })
+    })
+}
+
+fn read_keyword<'a>(
+    token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
+) -> Option<Result<Form, Error>> {
+    token_iter.next().map(|name| {
+        Ok(Form {
+            kind: FormKind::Keyword(name.to_string()),
+        })
+    })
+}
+
 fn reader_macro<'a>(
     fnname: &str,
     token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
-) -> Result<Ast, RispError> {
+) -> Result<Form, Error> {
     token_iter.next();
-    let mut values = vec![ast::Symbol::with_value(fnname)];
+    let mut values = vec![Form {
+        kind: FormKind::Symbol(Ident::from_str(fnname)),
+    }];
     match read_form(token_iter) {
         Some(Ok(form_result)) => values.push(form_result),
         Some(err @ Err(_)) => return err,
-        None => return Err(RispError::Eof),
+        None => return Err(Error::Eof),
     }
-    Ok(ast::List::with_values(values))
+    Ok(Form {
+        kind: FormKind::List(values),
+    })
 }
 
 fn meta_reader_macro<'a>(
     token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
-) -> Result<Ast, RispError> {
+) -> Result<Form, Error> {
     assert_eq!(token_iter.next(), Some("^"));
-    let meta = read_form(token_iter).transpose()?.ok_or(RispError::Eof)?;
-    let form = read_form(token_iter).transpose()?.ok_or(RispError::Eof)?;
-    Ok(ast::List::with_values([ast::Symbol::with_value("with-meta"), form, meta]))
+    let meta = read_form(token_iter).transpose()?.ok_or(Error::Eof)?;
+    let form = read_form(token_iter).transpose()?.ok_or(Error::Eof)?;
+    let symbol = Form {
+        kind: FormKind::Symbol(Ident::from_str("with-meta")),
+    };
+    Ok(Form {
+        kind: FormKind::List(vec![symbol, form, meta]),
+    })
 }
 
 fn read_form<'a>(
     token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
-) -> Option<Result<Ast, RispError>> {
+) -> Option<Result<Form, Error>> {
     match token_iter.peek() {
-        Some(&"nil") => <ast::Nil as ReadForm>::read_form(token_iter),
-        Some(&"(") => <ast::List as ReadForm>::read_form(token_iter),
-        Some(&"[") => <ast::Vector as ReadForm>::read_form(token_iter),
-        Some(&"{") => <ast::HashMap as ReadForm>::read_form(token_iter),
+        Some(&"nil") => read_nil(token_iter),
+        Some(&"true") | Some (&"false") => read_bool(token_iter),
+        Some(&"(") => self::list::read_list(token_iter),
+        Some(&"[") => self::list::read_vector(token_iter),
+        Some(&"{") => self::list::read_hash_map(token_iter),
         Some(&"'") => Some(reader_macro("quote", token_iter)),
         Some(&"`") => Some(reader_macro("quasiquote", token_iter)),
         Some(&"~") => Some(reader_macro("unquote", token_iter)),
         Some(&"~@") => Some(reader_macro("splice-unquote", token_iter)),
         Some(&"@") => Some(reader_macro("deref", token_iter)),
         Some(&"^") => Some(meta_reader_macro(token_iter)),
-        Some(s) if s.starts_with('"') => <ast::RString as ReadForm>::read_form(token_iter),
-        Some(s) if s.starts_with(':') => <ast::Keyword as ReadForm>::read_form(token_iter),
-        Some(_token) => <ast::Symbol as ReadForm>::read_form(token_iter),
+        Some(s) if s.starts_with(|c| matches!(c, '0'..='9')) => read_number(token_iter),
+        Some(s) if s.starts_with('"') => read_string(token_iter),
+        Some(s) if s.starts_with(':') => read_keyword(token_iter),
+        Some(_token) => read_symbol(token_iter),
         None => None,
     }
 }
 
-pub trait ReadForm {
-    fn read_form<'a>(
-        token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
-    ) -> Option<Result<Ast, RispError>>
-    where
-        Self: Sized;
-}
-
-impl ReadForm for ast::Nil {
-    fn read_form<'a>(
-        token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
-    ) -> Option<Result<Ast, RispError>>
-    where
-        Self: Sized,
-    {
-        assert_eq!(token_iter.next(), Some("nil"));
-        Some(Ok(Ast::of(ast::Nil)))
-    }
-}
-
-impl ReadForm for ast::Symbol {
-    fn read_form<'a>(
-        token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
-    ) -> Option<Result<Ast, RispError>>
-    where
-        Self: Sized,
-    {
-        token_iter.next().map(ast::Symbol::with_value).map(Ok)
-    }
-}
-
-
-// fn extract_meat(input: &str) -> IResult<&str, String> {
-//     if input == "" {
-//         return Ok(("", String::new()));
-//     }
-//     alt((
-//         value(String::new(), tag("\"\"")),
-//         delimited(
-//             tag("\""),
-//             escaped_transform(
-//                 is_not("\\\""),
-//                 '\\',
-//                 alt((
-//                     value("\\", tag("\\")),
-//                     value("\"", tag("\"")),
-//                     value("\n", tag("n")),
-//                 )),
-//             ),
-//             tag("\""),
-//         ),
-//     ))(input)
-// }
-
-impl ReadForm for ast::RString {
-    fn read_form<'a>(
-        token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
-    ) -> Option<Result<Ast, RispError>>
-    where
-        Self: Sized,
-    {
-        token_iter.next().map(ast::RString::with_value).map(Ok)
-    }
-}
-
-impl ReadForm for ast::Keyword {
-    fn read_form<'a>(
-        token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
-    ) -> Option<Result<Ast, RispError>>
-    where
-        Self: Sized,
-    {
-        token_iter.next().map(ast::Keyword::with_value).map(Ok)
-    }
-}
-
-pub fn read_str(input: &str) -> Result<Ast, RispError> {
+pub fn read_str(input: &str) -> Result<Form, Error> {
     let mut parser = iterator(input, tokenize);
     let ast = {
         let mut fused = (&mut parser).fuse();
         let ast = {
             let mut iter = Iterator::peekable(&mut fused);
-            read_form(&mut iter).ok_or(RispError::Eof)
+            read_form(&mut iter).ok_or(Error::Eof)
         }?;
         match fused.next() {
-            Some(_) => Err(RispError::Eof),
+            Some(_) => Err(Error::Eof),
             None => Ok(ast),
         }
     }?;
     match parser.finish() {
         Ok(("", ())) => ast,
-        _ => Err(RispError::Eof),
+        _ => Err(Error::Eof),
     }
 }
-
-struct PrintFormat<'a>(&'a Ast);
-
-impl<'a> std::fmt::Display for PrintFormat<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        ast::Form::fmt(self.0, f, true)
-    }
-}
-
-pub fn pr_str(input: &Ast) -> String {
-    format!("{}", PrintFormat(input))
-}
-
