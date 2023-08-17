@@ -169,7 +169,7 @@ fn read_form<'a>(
         Some(&"~@") => Some(reader_macro("splice-unquote", token_iter)),
         Some(&"@") => Some(reader_macro("deref", token_iter)),
         Some(&"^") => Some(meta_reader_macro(token_iter)),
-        Some(s) if s.starts_with(|c| matches!(c, '0'..='9')) => read_number(token_iter),
+        Some(s) if str::parse::<i64>(s).is_ok() => read_number(token_iter),
         Some(s) if s.starts_with('"') => read_string(token_iter),
         Some(s) if s.starts_with(':') => read_keyword(token_iter),
         Some(_token) => read_symbol(token_iter),

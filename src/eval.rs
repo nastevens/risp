@@ -188,7 +188,7 @@ impl<'de> Deserializer<'de> for Form {
             FormKind::String(s) => visitor.visit_string(s),
             FormKind::Keyword(_) => todo!(),
             FormKind::List(inner) => visit_array(inner, visitor),
-            FormKind::Vector(_) => todo!(),
+            FormKind::Vector(inner) => visit_array(inner, visitor),
             FormKind::HashMap(_) => todo!(),
             FormKind::NativeFn { name: _, f: _ } => todo!(),
             FormKind::Fn => todo!(),
@@ -208,19 +208,60 @@ pub fn eval_ast(form: Form, env: &mut Env) -> Result<Form> {
             kind: FormKind::Symbol(Ident { name }),
         } => env.get(&name),
         Form {
-            kind: FormKind::List(list) | FormKind::Vector(list),
+            kind: FormKind::List(inner),
         } => {
-            let vec = list
+            let evaluated = inner
                 .into_iter()
                 .map(|form| eval(form, env))
                 .collect::<Result<Vec<_>>>()?;
-            Ok(Form::list(vec))
+            Ok(Form::list(evaluated))
+        }
+        Form {
+            kind: FormKind::Vector(inner),
+        } => {
+            let evaluated = inner
+                .into_iter()
+                .map(|form| eval(form, env))
+                .collect::<Result<Vec<_>>>()?;
+            Ok(Form::vector(evaluated))
+        }
+        Form {
+            kind: FormKind::HashMap(inner),
+        } => {
+            let evaluated = inner
+                .into_iter()
+                .map(|form| eval(form, env))
+                .collect::<Result<Vec<_>>>()?;
+            Ok(Form::hash_map(evaluated))
         }
         other => return Ok(other),
     }
 }
 
+fn fn_name<'a>(form: &'a Form) -> Option<&'a str> {
+    match form.kind {
+        FormKind::List(ref inner) => {
+            if let Some(Form {
+                kind: FormKind::Symbol(Ident { name }),
+            }) = inner.first()
+            {
+                Some(name)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
 pub fn eval(form: Form, env: &mut Env) -> Result<Form> {
+    // match fn_name(&form) {
+    //     Some("def!") => todo!(),
+    //     Some("let*") => todo!(),
+    //     Some(other) => todo!(),
+    //     None => todo!(),
+    // }
+
     let (called_as, evaluated) = match form.kind {
         FormKind::List(ref list) if !list.is_empty() => match list.get(0) {
             Some(Form {
