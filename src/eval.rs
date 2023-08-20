@@ -238,46 +238,25 @@ pub fn eval_ast(form: Form, env: &mut Env) -> Result<Form> {
     }
 }
 
-fn fn_name<'a>(form: &'a Form) -> Option<&'a str> {
-    match form.kind {
-        FormKind::List(ref inner) => {
-            if let Some(Form {
-                kind: FormKind::Symbol(Ident { name }),
-            }) = inner.first()
-            {
-                Some(name)
-            } else {
-                None
-            }
-        }
-        _ => None,
+fn callable_name<'a>(form: &'a Form) -> Option<&'a str> {
+    if let FormKind::List(ref inner) = form.kind {
+        inner.first().and_then(|first| match first.kind {
+            FormKind::Symbol(ref ident) => Some(&*ident.name),
+            FormKind::NativeFn { name, .. } => Some(name),
+            _ => None,
+        })
+    } else {
+        None
     }
 }
 
-pub fn eval(form: Form, env: &mut Env) -> Result<Form> {
-    // match fn_name(&form) {
-    //     Some("def!") => todo!(),
-    //     Some("let*") => todo!(),
-    //     Some(other) => todo!(),
-    //     None => todo!(),
-    // }
-
-    let (called_as, evaluated) = match form.kind {
-        FormKind::List(ref list) if !list.is_empty() => match list.get(0) {
-            Some(Form {
-                kind: FormKind::Symbol(Ident { name }),
-            }) => (name.to_string(), eval_ast(form, env)?),
-            _ => ("#<anonymous>".to_string(), eval_ast(form, env)?),
-        },
-        _ => return eval_ast(form, env),
-    };
-
-    match evaluated.kind {
+/// # Panics
+///
+/// Panics if the provided Form is not a List
+fn apply(form: Form, called_as: Option<&str>) -> Result<Form> {
+    let called_as = called_as.unwrap_or("#<anonymous>");
+    match form.kind {
         FormKind::List(mut list) => {
-            if list.len() < 1 {
-                return Err(Error::InvalidArgument);
-            }
-
             let args = list.drain(1..).collect::<Vec<Form>>();
             if let FormKind::NativeFn { f, .. } = list.remove(0).kind {
                 f(&called_as, Form::list(args))
@@ -285,6 +264,31 @@ pub fn eval(form: Form, env: &mut Env) -> Result<Form> {
                 Err(Error::InvalidApply)
             }
         }
-        _ => todo!(),
+        other => panic!(
+            "`apply` requires a FormKind::List, but kind was {:?}",
+            other
+        ),
+    }
+}
+
+pub fn eval(form: Form, env: &mut Env) -> Result<Form> {
+    match callable_name(&form) {
+        Some("def!") => todo!(),
+        Some("let*") => todo!(),
+        Some(name) => {
+            // Guard that callable_name isn't refactored to return Some(..) on non-list types
+            assert!(form.is_list());
+
+            // Need to release borrow from fn_name call
+            let called_as = name.to_string();
+            let evaluated = eval_ast(form, env)?;
+            apply(evaluated, Some(&called_as))
+        }
+        None if form.is_empty_list() => Ok(form),
+        None if form.is_list() => {
+            // Not valid if there's no callable_name for a list - need to use (list ...)
+            Err(Error::InvalidApply)
+        }
+        None => eval_ast(form, env),
     }
 }

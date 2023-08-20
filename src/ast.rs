@@ -16,7 +16,21 @@ pub struct Form {
     pub kind: FormKind,
 }
 
+macro_rules! form_predicate_fn {
+    ($method:ident, $kind:pat) => {
+        pub fn $method(&self) -> bool {
+            matches!(self, Form { kind: $kind })
+        }
+    };
+}
+
 impl Form {
+    form_predicate_fn!(is_list, FormKind::List(_));
+
+    pub fn is_empty_list(&self) -> bool {
+        matches!(self.kind, FormKind::List(ref inner) if inner.is_empty())
+    }
+
     pub fn nil() -> Form {
         Form {
             kind: FormKind::Nil,
