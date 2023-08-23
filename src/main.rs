@@ -17,11 +17,12 @@ fn read_eval_print(input: &str, env: &mut Env) -> Result<String, Error> {
 
 fn main() {
     let mut rl = DefaultEditor::new().expect("initializing rustyline");
-    if rl.load_history(".mal-history").is_err() {
+    if rl.load_history(".risp-history").is_err() {
         eprintln!("No previous history.");
     }
 
     let mut env = Env::new();
+    risp::core::populate(&mut env);
     loop {
         match rl.readline("user> ") {
             Ok(line) if line.is_empty() => continue,

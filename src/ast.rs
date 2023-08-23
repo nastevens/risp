@@ -1,4 +1,4 @@
-use crate::Result;
+use crate::{Env, Result};
 
 #[derive(Clone, Debug)]
 pub struct Ident {
@@ -91,9 +91,20 @@ impl Form {
         }
     }
 
-    pub fn native(name: &'static str, f: &'static dyn Fn(&str, Form) -> Result<Form>) -> Form {
+    pub fn native_fn(f: &'static dyn Fn(Form) -> Result<Form>) -> Form {
         Form {
-            kind: FormKind::NativeFn { name, f },
+            kind: FormKind::NativeFn(f),
+        }
+    }
+
+    pub fn user_fn(binds: Vec<Ident>, body: Form, env: Env) -> Form {
+        Form {
+            kind: FormKind::UserFn {
+                binds,
+                bind_rest: None,
+                body: Box::new(body),
+                env,
+            },
         }
     }
 }
@@ -110,11 +121,13 @@ pub enum FormKind {
     List(Vec<Form>),
     Vector(Vec<Form>),
     HashMap(Vec<Form>),
-    NativeFn {
-        name: &'static str,
-        f: &'static dyn Fn(&str, Form) -> Result<Form>,
+    NativeFn(&'static dyn Fn(Form) -> Result<Form>),
+    UserFn {
+        binds: Vec<Ident>,
+        bind_rest: Option<Ident>,
+        body: Box<Form>,
+        env: Env,
     },
-    Fn,
 }
 
 impl std::fmt::Debug for FormKind {
@@ -131,12 +144,8 @@ impl std::fmt::Debug for FormKind {
             FormKind::List(val) => write!(f, "List({:?})", val),
             FormKind::Vector(val) => write!(f, "Vector({:?})", val),
             FormKind::HashMap(val) => write!(f, "HashMap({:?})", val),
-            FormKind::NativeFn { name, f: _ } => f
-                .debug_struct("NativeFn")
-                .field("name", name)
-                .field("function", &"#<function>")
-                .finish(),
-            FormKind::Fn => write!(f, "Fn"),
+            FormKind::NativeFn(_) => write!(f, "NativeFn(#<function>)"),
+            FormKind::UserFn { .. } => write!(f, "UserFn"),
         }
     }
 }

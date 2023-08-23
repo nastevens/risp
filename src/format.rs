@@ -31,6 +31,6 @@ pub fn pr_str(input: &Form) -> String {
         FormKind::Vector(list) => list_to_string(list, "[", "]"),
         FormKind::HashMap(list) => list_to_string(list, "{", "}"),
         FormKind::NativeFn { .. } => "#<function>".to_string(),
-        FormKind::Fn => "#<function>".to_string(),
+        FormKind::UserFn { .. } => "#<function>".to_string(),
     }
 }

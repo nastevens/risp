@@ -26,7 +26,7 @@ pub enum Error {
     Eof,
     #[error("unbalanced list")]
     UnbalancedList,
-    #[error("unknown symbol {0}")]
+    #[error("{0} not found")]
     UnknownSymbol(String),
     #[error("invalid number {0}")]
     InvalidNumber(String),

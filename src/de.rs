@@ -9,7 +9,9 @@ where
 
     fn try_into(self) -> Result<Vec<T>> {
         match self.kind {
-            FormKind::List(inner) => inner.into_iter().map(|x| Ok(x.try_into()?)).collect(),
+            FormKind::List(inner) | FormKind::Vector(inner) => {
+                inner.into_iter().map(|x| Ok(x.try_into()?)).collect()
+            }
             _ => Err(crate::Error::InvalidArgument),
         }
     }

@@ -36,65 +36,100 @@ pub fn eval_ast(form: Form, env: &mut Env) -> Result<Form> {
     }
 }
 
-fn callable_name<'a>(form: &'a Form) -> Option<&'a str> {
-    if let FormKind::List(ref inner) = form.kind {
-        inner.first().and_then(|first| match first.kind {
-            FormKind::Symbol(ref ident) => Some(&*ident.name),
-            FormKind::NativeFn { name, .. } => Some(name),
-            _ => None,
-        })
-    } else {
-        None
-    }
-}
-
 fn def(form: Form, env: &mut Env) -> Result<Form> {
-    dbg!(&form);
     let (_, symbol, value): (Form, Ident, Form) = form.try_into()?;
     let evaluated = eval(value, env)?;
     env.set(symbol.name, evaluated.clone());
     Ok(evaluated)
 }
 
-/// # Panics
-///
-/// Panics if the provided Form is not a List
-fn apply(form: Form, called_as: Option<&str>) -> Result<Form> {
-    let called_as = called_as.unwrap_or("#<anonymous>");
-    match form.kind {
-        FormKind::List(mut list) => {
-            let args = list.drain(1..).collect::<Vec<Form>>();
-            if let FormKind::NativeFn { f, .. } = list.remove(0).kind {
-                f(&called_as, Form::list(args))
-            } else {
-                Err(Error::InvalidApply)
+fn let_(form: Form, env: &Env) -> Result<Form> {
+    let (_, bindings, to_evaluate): (Form, Vec<Form>, Form) = form.try_into()?;
+    let mut iter = bindings.into_iter().fuse();
+    let mut env = Env::new_with(env);
+    loop {
+        let symbol: Option<Ident> = iter.next().map(TryInto::try_into).transpose()?;
+        let value: Option<Form> = iter.next().map(TryInto::try_into).transpose()?;
+        match (symbol, value) {
+            (Some(symbol), Some(value)) => {
+                let evaluated = eval(value, &mut env)?;
+                env.set(symbol.name, evaluated);
+                env = Env::new_with(&env);
             }
+            (None, None) => break,
+            _ => return Err(Error::InvalidArgument),
         }
-        other => panic!(
-            "`apply` requires a FormKind::List, but kind was {:?}",
-            other
-        ),
+    }
+    eval(to_evaluate, &mut env)
+}
+
+fn fn_(form: Form, env: &Env) -> Result<Form> {
+    let (_, binds, body): (Form, Vec<Ident>, Form) = form.try_into()?;
+    let env = Env::new_with(env);
+    Ok(Form::user_fn(binds, body, env))
+}
+
+impl Form {
+    fn apply(self, apply_env: &mut Env) -> Result<Form> {
+        match self.kind {
+            FormKind::List(mut list) => {
+                if list.is_empty() {
+                    return Err(Error::InvalidApply);
+                }
+                let params = list.drain(1..).collect::<Vec<Form>>();
+                match list.remove(0).kind {
+                    FormKind::NativeFn(f) => f(Form::list(params)),
+                    FormKind::UserFn {
+                        binds,
+                        body,
+                        env: ref closure_env,
+                        ..
+                    } => {
+                        let mut env = Env::new_with(closure_env);
+                        for (bind, value) in binds.into_iter().zip(params) {
+                            let evaluated = eval_ast(value, apply_env)?;
+                            env.set(bind.name, evaluated);
+                        }
+                        eval(*body, &mut env)
+                    }
+                    _ => Err(Error::InvalidApply),
+                }
+            }
+            _ => Err(Error::InvalidApply),
+        }
+    }
+
+    fn calling(&self) -> Option<&str> {
+        if let FormKind::List(ref inner) = self.kind {
+            inner.first().and_then(|first| match first.kind {
+                FormKind::Symbol(ref ident) => Some(&*ident.name),
+                _ => None,
+            })
+        } else {
+            None
+        }
+    }
+
+    fn is_callable(&self) -> bool {
+        if let FormKind::List(ref inner) = self.kind {
+            inner
+                .first()
+                .map(|first| matches!(first.kind, FormKind::NativeFn(_) | FormKind::UserFn { .. }))
+                .unwrap_or(false)
+        } else {
+            false
+        }
     }
 }
 
 pub fn eval(form: Form, env: &mut Env) -> Result<Form> {
-    match callable_name(&form) {
+    match form.calling() {
         Some("def!") => def(form, env),
-        Some("let*") => todo!(),
-        Some(name) => {
-            // Guard that callable_name isn't refactored to return Some(..) on non-list types
-            assert!(form.is_list());
-
-            // Need to release borrow from fn_name call
-            let called_as = name.to_string();
-            let evaluated = eval_ast(form, env)?;
-            apply(evaluated, Some(&called_as))
-        }
-        None if form.is_empty_list() => Ok(form),
-        None if form.is_list() => {
-            // Not valid if there's no callable_name for a list - need to use (list ...)
-            Err(Error::InvalidApply)
-        }
-        None => eval_ast(form, env),
+        Some("let*") => let_(form, env),
+        Some("fn*") => fn_(form, env),
+        _ if form.is_empty_list() => Ok(form),
+        _ if form.is_callable() => eval_ast(form, env)?.apply(env),
+        _ if form.is_list() => Err(Error::InvalidApply),
+        _ => eval_ast(form, env),
     }
 }

@@ -2,25 +2,34 @@ use std::{collections::HashMap, rc::Rc};
 
 use crate::{Error, Form, Result};
 
+#[derive(Debug)]
 struct EnvInner {
     data: HashMap<String, Form>,
+    parent: Option<Rc<EnvInner>>,
 }
 
+#[derive(Clone, Debug)]
 pub struct Env {
-    outer: Option<Rc<Env>>,
     inner: Rc<EnvInner>,
 }
 
 impl Env {
     pub fn new() -> Env {
-        let mut env = Env {
-            outer: None,
+        Env {
             inner: Rc::new(EnvInner {
                 data: HashMap::new(),
+                parent: None,
             }),
-        };
-        crate::core::populate(&mut env);
-        env
+        }
+    }
+
+    pub fn new_with(parent: &Env) -> Env {
+        Env {
+            inner: Rc::new(EnvInner {
+                data: HashMap::new(),
+                parent: Some(parent.inner.clone()),
+            })
+        }
     }
 
     pub fn set(&mut self, key: impl AsRef<str>, value: Form) {
@@ -31,12 +40,16 @@ impl Env {
     }
 
     pub fn get(&self, key: &str) -> Result<Form> {
-        if let Some(value) = (*self.inner).data.get(key) {
-            Ok(value.clone())
-        } else if let Some(ref outer) = self.outer {
-            (*outer).get(key)
-        } else {
-            Err(Error::UnknownSymbol(key.into()))
+        let mut current = &self.inner;
+        loop {
+            if let Some(value) = (*current).data.get(key) {
+                return Ok(value.clone())
+            } else if let Some(ref parent) = (*current).parent {
+                current = parent;
+            } else {
+                return Err(Error::UnknownSymbol(key.into()))
+            }
+
         }
     }
 }
