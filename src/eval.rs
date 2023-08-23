@@ -126,7 +126,7 @@ pub fn eval(form: Form, env: &mut Env) -> Result<Form> {
     match form.calling() {
         Some("def!") => def(form, env),
         Some("let*") => let_(form, env),
-        Some("fn*") => fn_(form, env),
+        Some("fn*") => fn_(form, env)?.apply(env),
         _ if form.is_empty_list() => Ok(form),
         _ if form.is_callable() => eval_ast(form, env)?.apply(env),
         _ if form.is_list() => Err(Error::InvalidApply),
