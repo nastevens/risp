@@ -55,7 +55,7 @@ fn do_(form: Form, mut env: Env) -> Result<(Form, Env)> {
 }
 
 impl Form {
-    fn apply<'a>(self, env: Env) -> Result<(Form, Env)> {
+    fn apply(self, env: Env) -> Result<(Form, Env)> {
         match self.kind {
             FormKind::List(mut list) => {
                 if list.is_empty() {
