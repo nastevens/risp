@@ -1,4 +1,4 @@
-use crate::{Env, Form, FormKind, Result};
+use crate::{Env, Form, Result};
 
 pub fn populate(env: &mut Env) {
     env.set("+", Form::native_fn(&add));
@@ -7,6 +7,13 @@ pub fn populate(env: &mut Env) {
     env.set("/", Form::native_fn(&div));
     env.set("list", Form::native_fn(&list));
     env.set("list?", Form::native_fn(&is_list));
+    env.set("empty?", Form::native_fn(&is_empty));
+    env.set("count", Form::native_fn(&count));
+    env.set("=", Form::native_fn(&eq));
+    env.set("<", Form::native_fn(&lt));
+    env.set("<=", Form::native_fn(&lte));
+    env.set(">", Form::native_fn(&gt));
+    env.set(">=", Form::native_fn(&gte));
 }
 
 fn add(params: Form) -> Result<Form> {
@@ -36,11 +43,41 @@ fn list(params: Form) -> Result<Form> {
 }
 
 fn is_list(params: Form) -> Result<Form> {
-    let parsed: (Form,) = params.try_into()?;
-    Ok(Form::boolean(matches!(
-        parsed,
-        (Form {
-            kind: FormKind::List(_)
-        },)
-    )))
+    let (parsed,): (Form,) = params.try_into()?;
+    Ok(Form::boolean(parsed.is_list()))
+}
+
+fn is_empty(params: Form) -> Result<Form> {
+    let (parsed,): (Vec<Form>,) = params.try_into()?;
+    Ok(Form::boolean(parsed.is_empty()))
+}
+
+fn count(params: Form) -> Result<Form> {
+    let (parsed,): (Vec<Form>,) = params.try_into()?;
+    Ok(Form::int(parsed.len().try_into()?))
+}
+
+fn eq(params: Form) -> Result<Form> {
+    let (a, b): (Form, Form) = params.try_into()?;
+    Ok(Form::boolean(a == b))
+}
+
+fn lt(params: Form) -> Result<Form> {
+    let (a, b): (i64, i64) = params.try_into()?;
+    Ok(Form::boolean(a < b))
+}
+
+fn lte(params: Form) -> Result<Form> {
+    let (a, b): (i64, i64) = params.try_into()?;
+    Ok(Form::boolean(a <= b))
+}
+
+fn gt(params: Form) -> Result<Form> {
+    let (a, b): (i64, i64) = params.try_into()?;
+    Ok(Form::boolean(a > b))
+}
+
+fn gte(params: Form) -> Result<Form> {
+    let (a, b): (i64, i64) = params.try_into()?;
+    Ok(Form::boolean(a >= b))
 }

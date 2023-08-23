@@ -9,6 +9,7 @@ where
 
     fn try_into(self) -> Result<Vec<T>> {
         match self.kind {
+            FormKind::Nil => Ok(Vec::new()),
             FormKind::List(inner) | FormKind::Vector(inner) => {
                 inner.into_iter().map(|x| Ok(x.try_into()?)).collect()
             }
@@ -20,6 +21,21 @@ where
 impl Into<()> for Form {
     fn into(self) -> () {
         ()
+    }
+}
+
+impl Into<bool> for Form {
+    fn into(self) -> bool {
+        !matches!(self.kind, FormKind::Nil | FormKind::Boolean(false))
+    }
+}
+
+impl Into<Form> for Option<Form> {
+    fn into(self) -> Form {
+        match self {
+            Some(x) => x,
+            None => Form::nil(),
+        }
     }
 }
 
@@ -62,9 +78,9 @@ macro_rules! tuple_impls {
                 fn try_into(self) -> std::result::Result<($($name,)+), crate::Error> {
                     match self.kind {
                         crate::ast::FormKind::List(mut inner) => {
-                            let mut iter = inner.drain(..);
+                            let mut iter = inner.drain(..).fuse();
                             $(
-                                let $name = iter.next().ok_or(crate::Error::InvalidArgument)?.try_into()?;
+                                let $name = Into::<Form>::into(iter.next()).try_into()?;
                             )+
                             if iter.next().is_none() {
                                 Ok(($($name,)+))

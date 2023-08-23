@@ -43,7 +43,7 @@ fn def(form: Form, env: &mut Env) -> Result<Form> {
     Ok(evaluated)
 }
 
-fn let_<'a>(form: Form, env: &Env) -> Result<(Env, Form)> {
+fn let_(form: Form, env: &Env) -> Result<(Env, Form)> {
     let (_, bindings, to_evaluate): ((), Vec<Form>, Form) = form.try_into()?;
     let mut iter = bindings.into_iter().fuse();
     let mut env = Env::new_with(env);
@@ -68,6 +68,26 @@ fn fn_(form: Form, env: &Env) -> Result<Form> {
     Ok(Form::user_fn(binds, body, env))
 }
 
+fn if_(form: Form, env: &Env) -> Result<Form> {
+    let (_, predicate, on_true, on_false): ((), Form, Form, Form) = form.try_into()?;
+    let mut env = Env::new_with(env);
+    let eval_predicate = eval(predicate, &mut env)?;
+    if TryInto::<bool>::try_into(eval_predicate)? {
+        Ok(on_true)
+    } else {
+        Ok(on_false)
+    }
+}
+
+fn do_(form: Form, env: &mut Env) -> Result<Form> {
+    let mut params = TryInto::<Vec<Form>>::try_into(form)?.drain(1..).collect::<Vec<Form>>();
+    let last = params.pop().unwrap_or_else(Form::nil);
+    for form in params {
+        eval(form, env)?;
+    }
+    Ok(last)
+}
+
 impl Form {
     fn apply<'a>(self, env: &Env) -> Result<(Env, Form)> {
         match self.kind {
@@ -86,8 +106,8 @@ impl Form {
                     } => {
                         let mut env = Env::new_with(closure_env);
                         for (bind, value) in binds.into_iter().zip(params) {
-                            let result = eval_ast(value, &mut env)?;
-                            env.set(bind.name, result);
+                            // let result = eval(value, &mut env)?;
+                            env.set(bind.name, value);
                         }
                         Ok((env, *body))
                     }
@@ -124,10 +144,13 @@ impl Form {
 pub fn eval(mut form: Form, outer_env: &mut Env) -> Result<Form> {
     let mut env = Env::new_with(outer_env);
     loop {
+        dbg!(&form);
         match form.calling() {
             Some("def!") => return def(form, outer_env),
             Some("let*") => (env, form) = let_(form, &env)?,
             Some("fn*") => return fn_(form, &env),
+            Some("if") => form = if_(form, &env)?,
+            Some("do") => form = do_(form, outer_env)?,
             _ => {
                 let evaluated = eval_ast(form, &mut env)?;
                 if evaluated.is_callable() {

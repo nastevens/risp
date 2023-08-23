@@ -1,6 +1,6 @@
 use crate::{Env, Result};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Ident {
     pub name: String,
 }
@@ -11,7 +11,7 @@ impl Ident {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Form {
     pub kind: FormKind,
 }
@@ -128,6 +128,26 @@ pub enum FormKind {
         body: Box<Form>,
         env: Env,
     },
+}
+
+impl PartialEq<FormKind> for FormKind {
+    fn eq(&self, other: &FormKind) -> bool {
+        match (self, other) {
+            (FormKind::Nil, FormKind::Nil) => true,
+            (FormKind::Boolean(a), FormKind::Boolean(b)) => *a == *b,
+            (FormKind::Symbol(a), FormKind::Symbol(b)) => *a == *b,
+            (FormKind::Integer(a), FormKind::Integer(b)) => *a == *b,
+            (FormKind::Float(a), FormKind::Float(b)) => *a == *b,
+            (FormKind::String(a), FormKind::String(b)) => *a == *b,
+            (FormKind::Keyword(a), FormKind::Keyword(b)) => *a == *b,
+            (FormKind::List(a), FormKind::List(b)) => *a == *b,
+            (FormKind::Vector(a), FormKind::Vector(b)) => *a == *b,
+            (FormKind::HashMap(a), FormKind::HashMap(b)) => *a == *b,
+            (FormKind::NativeFn(_), _) => false,
+            (FormKind::UserFn { .. }, _) => false,
+            (_, _) => false,
+        }
+    }
 }
 
 impl std::fmt::Debug for FormKind {

@@ -10,7 +10,7 @@ mod env;
 // mod ptr;
 mod reader;
 
-use std::convert::Infallible;
+use std::{convert::Infallible, num::TryFromIntError};
 
 pub use env::Env;
 pub use format::pr_str;
@@ -36,10 +36,18 @@ pub enum Error {
     SerdeError(String),
     #[error("tried to apply something that's not a function")]
     InvalidApply,
+    #[error("could not convert integer")]
+    NumberConversion,
 }
 
 impl From<Infallible> for Error {
     fn from(x: Infallible) -> Error {
         match x {}
+    }
+}
+
+impl From<TryFromIntError> for Error {
+    fn from(_value: TryFromIntError) -> Self {
+        Error::NumberConversion
     }
 }
