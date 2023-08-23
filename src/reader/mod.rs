@@ -11,7 +11,7 @@ use nom::{
 };
 
 use crate::{
-    ast::{Form, FormKind, Ident},
+    form::{Form, FormKind, Ident},
     Error,
 };
 

@@ -1,7 +1,7 @@
 use std::iter::Peekable;
 
 use crate::{
-    ast::{Form, FormKind},
+    form::{Form, FormKind},
     Error,
 };
 

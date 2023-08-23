@@ -1,4 +1,4 @@
-use crate::{ast::Ident, Form, FormKind, Result};
+use crate::{form::Ident, Form, FormKind, Result};
 
 impl<T, E> TryInto<Vec<T>> for Form
 where
@@ -77,7 +77,7 @@ macro_rules! tuple_impls {
                 #[allow(non_snake_case)]
                 fn try_into(self) -> std::result::Result<($($name,)+), crate::Error> {
                     match self.kind {
-                        crate::ast::FormKind::List(mut inner) => {
+                        crate::form::FormKind::List(mut inner) => {
                             let mut iter = inner.drain(..).fuse();
                             $(
                                 let $name = Into::<Form>::into(iter.next()).try_into()?;

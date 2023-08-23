@@ -1,4 +1,4 @@
-use risp::{ast::Form, eval, Env, Error};
+use risp::{form::Form, eval, Env, Error};
 use rustyline::{error::ReadlineError, DefaultEditor};
 
 const HISTORY_FILE: &str = ".risp-history";

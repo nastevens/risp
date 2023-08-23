@@ -1,4 +1,4 @@
-use crate::{ast::Ident, Env, Error, Form, FormKind, Result};
+use crate::{form::Ident, Env, Error, Form, FormKind, Result};
 
 fn def(form: Form, env: Env) -> Result<(Form, Env)> {
     let (_, symbol, value): ((), Ident, Form) = form.try_into()?;
