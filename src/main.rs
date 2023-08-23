@@ -1,6 +1,8 @@
 use risp::{ast::Form, eval, Env, Error};
 use rustyline::{error::ReadlineError, DefaultEditor};
 
+const HISTORY_FILE: &str = ".risp-history";
+
 fn read(input: &str) -> Result<Form, Error> {
     risp::read_str(input)
 }
@@ -11,13 +13,14 @@ fn print(input: Form) -> String {
 
 fn read_eval_print(input: &str, env: &mut Env) -> Result<String, Error> {
     let form = read(input)?;
-    let evaluated = eval::eval(form, env)?;
+    let (evaluated, new_env) = eval::eval(form, env.clone())?;
+    *env = new_env;
     Ok(print(evaluated))
 }
 
 fn main() {
     let mut rl = DefaultEditor::new().expect("initializing rustyline");
-    if rl.load_history(".risp-history").is_err() {
+    if rl.load_history(HISTORY_FILE).is_err() {
         eprintln!("No previous history.");
     }
 
@@ -29,7 +32,7 @@ fn main() {
             Ok(line) => {
                 if line.len() > 0 {
                     let _ = rl.add_history_entry(&line);
-                    rl.save_history(".risp-history").expect("saving history");
+                    rl.save_history(HISTORY_FILE).expect("saving history");
                     match read_eval_print(&line, &mut env) {
                         Ok(result) => println!("{}", result),
                         Err(e) => eprintln!("{}", e),

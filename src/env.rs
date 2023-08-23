@@ -23,11 +23,11 @@ impl Env {
         }
     }
 
-    pub fn new_with(parent: &Env) -> Env {
+    pub fn new_with(parent: Env) -> Env {
         Env {
             inner: Rc::new(EnvInner {
                 data: HashMap::new(),
-                parent: Some(parent.clone()),
+                parent: Some(parent),
             }),
         }
     }

@@ -1,95 +1,61 @@
 use crate::{ast::Ident, Env, Error, Form, FormKind, Result};
 
-pub fn eval_ast(form: Form, env: &mut Env) -> Result<Form> {
-    match form {
-        Form {
-            kind: FormKind::Symbol(Ident { name }),
-        } => env.get(&name),
-        Form {
-            kind: FormKind::List(inner),
-        } => {
-            let evaluated = inner
-                .into_iter()
-                .map(|form| eval(form, env))
-                .collect::<Result<Vec<_>>>()?;
-            Ok(Form::list(evaluated))
-        }
-        Form {
-            kind: FormKind::Vector(inner),
-        } => {
-            let evaluated = inner
-                .into_iter()
-                .map(|form| eval(form, env))
-                .collect::<Result<Vec<_>>>()?;
-            Ok(Form::vector(evaluated))
-        }
-        Form {
-            kind: FormKind::HashMap(inner),
-        } => {
-            let evaluated = inner
-                .into_iter()
-                .map(|form| eval(form, env))
-                .collect::<Result<Vec<_>>>()?;
-            Ok(Form::hash_map(evaluated))
-        }
-        other => Ok(other),
-    }
-}
-
-fn def(form: Form, env: &mut Env) -> Result<Form> {
+fn def(form: Form, env: Env) -> Result<(Form, Env)> {
     let (_, symbol, value): ((), Ident, Form) = form.try_into()?;
-    let evaluated = eval(value, env)?;
-    env.set(symbol.name, evaluated.clone());
-    Ok(evaluated)
+    let (evaluated, mut env) = eval(value, env)?;
+    env.set(&symbol.name, evaluated);
+    Ok((env.get(&symbol.name)?, env))
 }
 
-fn let_(form: Form, env: &Env) -> Result<(Env, Form)> {
+fn let_(form: Form, env: Env) -> Result<(Form, Env)> {
     let (_, bindings, to_evaluate): ((), Vec<Form>, Form) = form.try_into()?;
     let mut iter = bindings.into_iter().fuse();
     let mut env = Env::new_with(env);
+    let mut evaluated;
     loop {
         let symbol: Option<Ident> = iter.next().map(TryInto::try_into).transpose()?;
         let value: Option<Form> = iter.next().map(TryInto::try_into).transpose()?;
         match (symbol, value) {
             (Some(symbol), Some(value)) => {
-                let evaluated = eval(value, &mut env)?;
+                (evaluated, env) = eval(value, env)?;
                 env.set(symbol.name, evaluated);
             }
             (None, None) => break,
             _ => return Err(Error::InvalidArgument),
         }
     }
-    Ok((env, to_evaluate))
+    Ok((to_evaluate, env))
 }
 
-fn fn_(form: Form, env: &Env) -> Result<Form> {
+fn fn_(form: Form, env: Env) -> Result<(Form, Env)> {
     let (_, binds, body): ((), Vec<Ident>, Form) = form.try_into()?;
     let env = Env::new_with(env);
-    Ok(Form::user_fn(binds, body, env))
+    Ok((Form::user_fn(binds, body, env.clone()), env))
 }
 
-fn if_(form: Form, env: &Env) -> Result<Form> {
+fn if_(form: Form, env: Env) -> Result<(Form, Env)> {
     let (_, predicate, on_true, on_false): ((), Form, Form, Form) = form.try_into()?;
-    let mut env = Env::new_with(env);
-    let eval_predicate = eval(predicate, &mut env)?;
+    let (eval_predicate, env) = eval(predicate, env)?;
     if TryInto::<bool>::try_into(eval_predicate)? {
-        Ok(on_true)
+        Ok((on_true, env))
     } else {
-        Ok(on_false)
+        Ok((on_false, env))
     }
 }
 
-fn do_(form: Form, env: &mut Env) -> Result<Form> {
-    let mut params = TryInto::<Vec<Form>>::try_into(form)?.drain(1..).collect::<Vec<Form>>();
+fn do_(form: Form, mut env: Env) -> Result<(Form, Env)> {
+    let mut params = TryInto::<Vec<Form>>::try_into(form)?
+        .drain(1..)
+        .collect::<Vec<Form>>();
     let last = params.pop().unwrap_or_else(Form::nil);
     for form in params {
-        eval(form, env)?;
+        (_, env) = eval(form, env)?;
     }
-    Ok(last)
+    Ok((last, env))
 }
 
 impl Form {
-    fn apply<'a>(self, env: &Env) -> Result<(Env, Form)> {
+    fn apply<'a>(self, env: Env) -> Result<(Form, Env)> {
         match self.kind {
             FormKind::List(mut list) => {
                 if list.is_empty() {
@@ -97,19 +63,19 @@ impl Form {
                 }
                 let params = list.drain(1..).collect::<Vec<Form>>();
                 match list.remove(0).kind {
-                    FormKind::NativeFn(f) => Ok((env.clone(), f(Form::list(params))?)),
+                    FormKind::NativeFn(f) => Ok((f(Form::list(params))?, env)),
                     FormKind::UserFn {
                         binds,
                         body,
-                        env: ref closure_env,
+                        env: _closure_env,
                         ..
                     } => {
-                        let mut env = Env::new_with(closure_env);
+                        let mut env = Env::new_with(env);
                         for (bind, value) in binds.into_iter().zip(params) {
                             // let result = eval(value, &mut env)?;
                             env.set(bind.name, value);
                         }
-                        Ok((env, *body))
+                        Ok((*body, env))
                     }
                     _ => Err(Error::InvalidApply),
                 }
@@ -129,11 +95,11 @@ impl Form {
         }
     }
 
-    fn is_callable(&self) -> bool {
+    fn is_user_fn(&self) -> bool {
         if let FormKind::List(ref inner) = self.kind {
             inner
                 .first()
-                .map(|first| matches!(first.kind, FormKind::NativeFn(_) | FormKind::UserFn { .. }))
+                .map(|first| matches!(first.kind, FormKind::UserFn { .. }))
                 .unwrap_or(false)
         } else {
             false
@@ -141,22 +107,65 @@ impl Form {
     }
 }
 
-pub fn eval(mut form: Form, outer_env: &mut Env) -> Result<Form> {
-    let mut env = Env::new_with(outer_env);
+pub fn eval_ast(form: Form, mut env: Env) -> Result<(Form, Env)> {
+    match form {
+        Form {
+            kind: FormKind::Symbol(Ident { name }),
+        } => Ok((env.get(&name)?, env)),
+        Form {
+            kind: FormKind::List(inner),
+        } => {
+            let mut v = vec![];
+            for mut form in inner {
+                (form, env) = eval(form, env)?;
+                v.push(form);
+            }
+            Ok((Form::list(v), env))
+        }
+        Form {
+            kind: FormKind::Vector(inner),
+        } => {
+            let mut v = vec![];
+            for form in inner {
+                let (form, _) = eval(form, env.clone())?;
+                v.push(form);
+            }
+            Ok((Form::vector(v), env))
+        }
+        Form {
+            kind: FormKind::HashMap(inner),
+        } => {
+            let mut v = vec![];
+            for form in inner {
+                let (form, _) = eval(form, env.clone())?;
+                v.push(form);
+            }
+            Ok((Form::hash_map(v), env))
+        }
+        other => Ok((other, env)),
+    }
+}
+
+pub fn eval(mut form: Form, mut env: Env) -> Result<(Form, Env)> {
     loop {
-        dbg!(&form);
+        if !form.is_list() {
+            return eval_ast(form, env);
+        }
+        if form.is_empty_list() {
+            return Ok((form, env));
+        }
         match form.calling() {
-            Some("def!") => return def(form, outer_env),
-            Some("let*") => (env, form) = let_(form, &env)?,
-            Some("fn*") => return fn_(form, &env),
-            Some("if") => form = if_(form, &env)?,
-            Some("do") => form = do_(form, outer_env)?,
+            Some("def!") => return def(form, env),
+            Some("let*") => (form, env) = let_(form, env)?,
+            Some("do") => (form, env) = do_(form, env)?,
+            Some("if") => (form, env) = if_(form, env)?,
+            Some("fn*") => return fn_(form, env),
             _ => {
-                let evaluated = eval_ast(form, &mut env)?;
-                if evaluated.is_callable() {
-                    (env, form) = evaluated.apply(&env)?;
+                (form, env) = eval_ast(form, env)?;
+                if form.is_user_fn() {
+                    (form, env) = form.apply(env)?;
                 } else {
-                    return Ok(evaluated);
+                    return form.apply(env);
                 }
             }
         }
