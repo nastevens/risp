@@ -17,6 +17,12 @@ where
     }
 }
 
+impl Into<()> for Form {
+    fn into(self) -> () {
+        ()
+    }
+}
+
 impl TryInto<i64> for Form {
     type Error = crate::Error;
 

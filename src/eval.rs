@@ -32,19 +32,19 @@ pub fn eval_ast(form: Form, env: &mut Env) -> Result<Form> {
                 .collect::<Result<Vec<_>>>()?;
             Ok(Form::hash_map(evaluated))
         }
-        other => return Ok(other),
+        other => Ok(other),
     }
 }
 
 fn def(form: Form, env: &mut Env) -> Result<Form> {
-    let (_, symbol, value): (Form, Ident, Form) = form.try_into()?;
+    let (_, symbol, value): ((), Ident, Form) = form.try_into()?;
     let evaluated = eval(value, env)?;
     env.set(symbol.name, evaluated.clone());
     Ok(evaluated)
 }
 
-fn let_(form: Form, env: &Env) -> Result<Form> {
-    let (_, bindings, to_evaluate): (Form, Vec<Form>, Form) = form.try_into()?;
+fn let_<'a>(form: Form, env: &Env) -> Result<(Env, Form)> {
+    let (_, bindings, to_evaluate): ((), Vec<Form>, Form) = form.try_into()?;
     let mut iter = bindings.into_iter().fuse();
     let mut env = Env::new_with(env);
     loop {
@@ -54,23 +54,22 @@ fn let_(form: Form, env: &Env) -> Result<Form> {
             (Some(symbol), Some(value)) => {
                 let evaluated = eval(value, &mut env)?;
                 env.set(symbol.name, evaluated);
-                env = Env::new_with(&env);
             }
             (None, None) => break,
             _ => return Err(Error::InvalidArgument),
         }
     }
-    eval(to_evaluate, &mut env)
+    Ok((env, to_evaluate))
 }
 
 fn fn_(form: Form, env: &Env) -> Result<Form> {
-    let (_, binds, body): (Form, Vec<Ident>, Form) = form.try_into()?;
+    let (_, binds, body): ((), Vec<Ident>, Form) = form.try_into()?;
     let env = Env::new_with(env);
     Ok(Form::user_fn(binds, body, env))
 }
 
 impl Form {
-    fn apply(self, apply_env: &mut Env) -> Result<Form> {
+    fn apply<'a>(self, env: &Env) -> Result<(Env, Form)> {
         match self.kind {
             FormKind::List(mut list) => {
                 if list.is_empty() {
@@ -78,7 +77,7 @@ impl Form {
                 }
                 let params = list.drain(1..).collect::<Vec<Form>>();
                 match list.remove(0).kind {
-                    FormKind::NativeFn(f) => f(Form::list(params)),
+                    FormKind::NativeFn(f) => Ok((env.clone(), f(Form::list(params))?)),
                     FormKind::UserFn {
                         binds,
                         body,
@@ -87,10 +86,10 @@ impl Form {
                     } => {
                         let mut env = Env::new_with(closure_env);
                         for (bind, value) in binds.into_iter().zip(params) {
-                            let evaluated = eval_ast(value, apply_env)?;
-                            env.set(bind.name, evaluated);
+                            let result = eval_ast(value, &mut env)?;
+                            env.set(bind.name, result);
                         }
-                        eval(*body, &mut env)
+                        Ok((env, *body))
                     }
                     _ => Err(Error::InvalidApply),
                 }
@@ -122,14 +121,21 @@ impl Form {
     }
 }
 
-pub fn eval(form: Form, env: &mut Env) -> Result<Form> {
-    match form.calling() {
-        Some("def!") => def(form, env),
-        Some("let*") => let_(form, env),
-        Some("fn*") => fn_(form, env)?.apply(env),
-        _ if form.is_empty_list() => Ok(form),
-        _ if form.is_callable() => eval_ast(form, env)?.apply(env),
-        _ if form.is_list() => Err(Error::InvalidApply),
-        _ => eval_ast(form, env),
+pub fn eval(mut form: Form, outer_env: &mut Env) -> Result<Form> {
+    let mut env = Env::new_with(outer_env);
+    loop {
+        match form.calling() {
+            Some("def!") => return def(form, outer_env),
+            Some("let*") => (env, form) = let_(form, &env)?,
+            Some("fn*") => return fn_(form, &env),
+            _ => {
+                let evaluated = eval_ast(form, &mut env)?;
+                if evaluated.is_callable() {
+                    (env, form) = evaluated.apply(&env)?;
+                } else {
+                    return Ok(evaluated);
+                }
+            }
+        }
     }
 }

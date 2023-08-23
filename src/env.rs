@@ -2,10 +2,10 @@ use std::{collections::HashMap, rc::Rc};
 
 use crate::{Error, Form, Result};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct EnvInner {
     data: HashMap<String, Form>,
-    parent: Option<Rc<EnvInner>>,
+    parent: Option<Env>,
 }
 
 #[derive(Clone, Debug)]
@@ -27,29 +27,27 @@ impl Env {
         Env {
             inner: Rc::new(EnvInner {
                 data: HashMap::new(),
-                parent: Some(parent.inner.clone()),
-            })
+                parent: Some(parent.clone()),
+            }),
         }
     }
 
     pub fn set(&mut self, key: impl AsRef<str>, value: Form) {
-        Rc::get_mut(&mut self.inner)
-            .unwrap()
+        Rc::make_mut(&mut self.inner)
             .data
             .insert(key.as_ref().into(), value);
     }
 
     pub fn get(&self, key: &str) -> Result<Form> {
-        let mut current = &self.inner;
+        let mut current = self;
         loop {
-            if let Some(value) = (*current).data.get(key) {
-                return Ok(value.clone())
-            } else if let Some(ref parent) = (*current).parent {
+            if let Some(value) = (*current.inner).data.get(key) {
+                return Ok(value.clone());
+            } else if let Some(ref parent) = (*current.inner).parent {
                 current = parent;
             } else {
-                return Err(Error::UnknownSymbol(key.into()))
+                return Err(Error::UnknownSymbol(key.into()));
             }
-
         }
     }
 }
