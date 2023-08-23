@@ -1,4 +1,6 @@
-use serde::de::{value::SeqDeserializer, Deserialize, Deserializer, IntoDeserializer};
+use serde::de::{
+    value::SeqDeserializer, Deserialize, DeserializeSeed, Deserializer, IntoDeserializer, Visitor, SeqAccess,
+};
 
 use crate::{ast::Ident, Env, Error, Form, FormKind, Result};
 
@@ -147,6 +149,18 @@ impl<'de> Deserialize<'de> for Form {
     }
 }
 
+pub(crate) struct FormPassthrough;
+
+impl<'de> DeserializeSeed<'de> for FormPassthrough {
+    type Value = Form;
+
+    fn deserialize<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
+    where
+        D: Deserializer<'de> {
+        todo!()
+    }
+}
+
 impl serde::de::Error for crate::Error {
     fn custom<T>(msg: T) -> Self
     where
@@ -170,6 +184,18 @@ where
 {
     let mut deserializer = SeqDeserializer::new(list.into_iter());
     visitor.visit_seq(&mut deserializer)
+}
+
+struct ListAccess;
+
+impl<'de> SeqAccess<'de> for ListAccess {
+    type Error = crate::Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> std::result::Result<Option<T::Value>, Self::Error>
+    where
+        T: DeserializeSeed<'de> {
+        todo!()
+    }
 }
 
 impl<'de> Deserializer<'de> for Form {
@@ -250,6 +276,14 @@ fn callable_name<'a>(form: &'a Form) -> Option<&'a str> {
     }
 }
 
+fn def(form: Form, env: &mut Env) -> Result<Form> {
+    // let (symbol, value): (Symbol, Form) = Deserialize::deserialize(form)?;
+    // let evaluated = eval(value, env)?;
+    // env.set(&symbol.0, evaluated.clone());
+    // Ok(evaluated)
+    todo!()
+}
+
 /// # Panics
 ///
 /// Panics if the provided Form is not a List
@@ -273,7 +307,7 @@ fn apply(form: Form, called_as: Option<&str>) -> Result<Form> {
 
 pub fn eval(form: Form, env: &mut Env) -> Result<Form> {
     match callable_name(&form) {
-        Some("def!") => todo!(),
+        Some("def!") => def(form, env),
         Some("let*") => todo!(),
         Some(name) => {
             // Guard that callable_name isn't refactored to return Some(..) on non-list types

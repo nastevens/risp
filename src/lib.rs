@@ -5,6 +5,7 @@ pub mod core;
 pub mod eval;
 pub mod exec;
 pub mod format;
+mod de;
 mod env;
 // mod ptr;
 mod reader;
