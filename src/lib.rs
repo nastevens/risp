@@ -2,20 +2,20 @@
 
 pub mod ast;
 pub mod core;
+mod de;
+mod env;
 pub mod eval;
 pub mod exec;
 pub mod format;
-mod de;
-mod env;
 // mod ptr;
 mod reader;
 
 use std::{convert::Infallible, num::TryFromIntError};
 
+pub use ast::{Form, FormKind};
 pub use env::Env;
 pub use format::pr_str;
 pub use reader::read_str;
-pub use ast::{Form, FormKind};
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, crate::Error>;

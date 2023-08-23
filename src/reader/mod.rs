@@ -11,7 +11,8 @@ use nom::{
 };
 
 use crate::{
-    ast::{Form, FormKind, Ident}, Error,
+    ast::{Form, FormKind, Ident},
+    Error,
 };
 
 mod list;
@@ -159,7 +160,7 @@ fn read_form<'a>(
 ) -> Option<Result<Form, Error>> {
     match token_iter.peek() {
         Some(&"nil") => read_nil(token_iter),
-        Some(&"true") | Some (&"false") => read_bool(token_iter),
+        Some(&"true") | Some(&"false") => read_bool(token_iter),
         Some(&"(") => self::list::read_list(token_iter),
         Some(&"[") => self::list::read_vector(token_iter),
         Some(&"{") => self::list::read_hash_map(token_iter),
