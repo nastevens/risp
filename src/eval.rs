@@ -9,7 +9,7 @@ impl<'de> Deserialize<'de> for Form {
     where
         D: serde::Deserializer<'de>,
     {
-        use serde::de::{EnumAccess, Error, MapAccess, SeqAccess, Unexpected, Visitor};
+        use serde::de::{EnumAccess, Error, MapAccess, Unexpected};
 
         struct FormVisitor;
 
@@ -154,7 +154,7 @@ pub(crate) struct FormPassthrough;
 impl<'de> DeserializeSeed<'de> for FormPassthrough {
     type Value = Form;
 
-    fn deserialize<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
+    fn deserialize<D>(self, _deserializer: D) -> std::result::Result<Self::Value, D::Error>
     where
         D: Deserializer<'de> {
         todo!()
@@ -191,7 +191,7 @@ struct ListAccess;
 impl<'de> SeqAccess<'de> for ListAccess {
     type Error = crate::Error;
 
-    fn next_element_seed<T>(&mut self, seed: T) -> std::result::Result<Option<T::Value>, Self::Error>
+    fn next_element_seed<T>(&mut self, _seed: T) -> std::result::Result<Option<T::Value>, Self::Error>
     where
         T: DeserializeSeed<'de> {
         todo!()
@@ -276,7 +276,7 @@ fn callable_name<'a>(form: &'a Form) -> Option<&'a str> {
     }
 }
 
-fn def(form: Form, env: &mut Env) -> Result<Form> {
+fn def(_form: Form, _env: &mut Env) -> Result<Form> {
     // let (symbol, value): (Symbol, Form) = Deserialize::deserialize(form)?;
     // let evaluated = eval(value, env)?;
     // env.set(&symbol.0, evaluated.clone());
