@@ -10,6 +10,8 @@ mod env;
 // mod ptr;
 mod reader;
 
+use std::convert::Infallible;
+
 pub use env::Env;
 pub use format::pr_str;
 pub use reader::read_str;
@@ -34,4 +36,10 @@ pub enum Error {
     SerdeError(String),
     #[error("tried to apply something that's not a function")]
     InvalidApply,
+}
+
+impl From<Infallible> for Error {
+    fn from(x: Infallible) -> Error {
+        match x {}
+    }
 }

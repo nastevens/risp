@@ -1,5 +1,3 @@
-use serde::Deserialize;
-
 use crate::{Env, Form, FormKind, Result};
 
 pub fn populate(env: &mut Env) {
@@ -12,24 +10,24 @@ pub fn populate(env: &mut Env) {
 }
 
 fn add(_called_as: &str, args: Form) -> Result<Form> {
-    let parsed: Vec<i64> = Deserialize::deserialize(args)?;
+    let parsed: Vec<i64> = args.try_into()?;
     Ok(Form::int(parsed.iter().sum()))
 }
 
 fn sub(_called_as: &str, args: Form) -> Result<Form> {
-    let parsed: Vec<i64> = Deserialize::deserialize(args)?;
+    let parsed: Vec<i64> = args.try_into()?;
     let mut iter = parsed.into_iter();
     let first = iter.next().unwrap_or(0);
     Ok(Form::int(iter.fold(first, |accum, arg| accum - arg)))
 }
 
 fn mul(_called_as: &str, args: Form) -> Result<Form> {
-    let parsed: Vec<i64> = Deserialize::deserialize(args)?;
+    let parsed: Vec<i64> = args.try_into()?;
     Ok(Form::int(parsed.iter().product()))
 }
 
 fn div(_called_as: &str, args: Form) -> Result<Form> {
-    let parsed: (i64, i64) = Deserialize::deserialize(args)?;
+    let parsed: (i64, i64) = args.try_into()?;
     Ok(Form::int(parsed.0 / parsed.1))
 }
 
@@ -38,7 +36,7 @@ fn list(_called_as: &str, args: Form) -> Result<Form> {
 }
 
 fn is_list(_called_as: &str, args: Form) -> Result<Form> {
-    let parsed: (Form,) = Deserialize::deserialize(args)?;
+    let parsed: (Form,) = args.try_into()?;
     Ok(Form::boolean(matches!(
         parsed,
         (Form {
