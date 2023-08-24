@@ -1,19 +1,19 @@
 // use std::{rc::Rc, any::Any};
 
-pub mod form;
-pub mod core;
 mod convert;
+pub mod core;
 mod env;
 pub mod eval;
 pub mod exec;
+pub mod form;
 pub mod format;
 // mod ptr;
 mod reader;
 
 use std::{convert::Infallible, num::TryFromIntError};
 
-pub use form::{Form, FormKind};
 pub use env::Env;
+pub use form::{Form, FormKind};
 pub use format::pr_str;
 pub use reader::read_str;
 use thiserror::Error;
