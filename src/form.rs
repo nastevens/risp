@@ -1,4 +1,4 @@
-use crate::{Env, Result, Error};
+use crate::{Env, Error, Result};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Ident {
