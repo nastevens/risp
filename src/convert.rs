@@ -18,21 +18,21 @@ where
     }
 }
 
-impl Into<()> for Form {
-    fn into(self) -> () {
-        ()
+impl From<Form> for () {
+    fn from(_val: Form) -> Self {
+        
     }
 }
 
-impl Into<bool> for Form {
-    fn into(self) -> bool {
-        !matches!(self.kind, FormKind::Nil | FormKind::Boolean(false))
+impl From<Form> for bool {
+    fn from(val: Form) -> Self {
+        !matches!(val.kind, FormKind::Nil | FormKind::Boolean(false))
     }
 }
 
-impl Into<Form> for Option<Form> {
-    fn into(self) -> Form {
-        match self {
+impl From<Option<Form>> for Form {
+    fn from(val: Option<Form>) -> Self {
+        match val {
             Some(x) => x,
             None => Form::nil(),
         }

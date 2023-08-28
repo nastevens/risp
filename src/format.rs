@@ -11,7 +11,7 @@ fn list_to_string<'a>(
         if has_fields {
             output.push(' ');
         }
-        output.push_str(&pr_str(&value));
+        output.push_str(&pr_str(value));
         has_fields = true;
     }
     output.push_str(end);

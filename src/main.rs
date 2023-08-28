@@ -29,7 +29,7 @@ fn main() {
         match rl.readline("user> ") {
             Ok(line) if line.is_empty() => continue,
             Ok(line) => {
-                if line.len() > 0 {
+                if !line.is_empty() {
                     let _ = rl.add_history_entry(&line);
                     rl.save_history(HISTORY_FILE).expect("saving history");
                     match read_eval_print(&line, &mut env) {
