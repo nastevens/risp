@@ -54,47 +54,45 @@ fn do_(form: Form, env: &mut Env) -> Result<Form> {
     Ok(last)
 }
 
-fn apply_native_fn(form: Form, _env: &mut Env) -> Result<Form> {
+fn extract_fn(form: Form) -> Result<(Form, Form)> {
     match form.kind {
         FormKind::List(mut list) => {
             if list.is_empty() {
                 return Err(Error::InvalidApply);
             }
             let params = list.drain(1..).collect::<Vec<Form>>();
-            match list.remove(0).kind {
-                FormKind::NativeFn(f) => Ok(f(Form::list(params))?),
-                _ => Err(Error::InvalidApply),
-            }
+            Ok((list.remove(0), Form::list(params)))
         }
         _ => Err(Error::InvalidApply),
     }
 }
 
-fn apply_user_fn(form: Form, env: &mut Env) -> Result<(Form, Env)> {
-    match form.kind {
-        FormKind::List(mut list) => {
-            if list.is_empty() {
-                return Err(Error::InvalidApply);
+fn apply_native_fn(f: Form, params: Form) -> Result<Form> {
+    assert!(params.is_list());
+    if let FormKind::NativeFn(f) = f.kind {
+        Ok(f(params)?)
+    } else {
+        panic!("apply_native_fn called with wrong Form type: {:?}", f)
+    }
+}
+
+fn apply_user_fn(f: Form, params: Form) -> Result<(Form, Env)> {
+    assert!(f.is_user_fn());
+    assert!(params.is_list());
+    match f.kind {
+        FormKind::UserFn {
+            binds,
+            body,
+            env: closure_env,
+            ..
+        } => {
+            let mut env = Env::new_with(&closure_env);
+            for (bind, value) in binds.into_iter().zip(params.into_iter()?) {
+                env.set(bind.name, value);
             }
-            let params = list.drain(1..).collect::<Vec<Form>>();
-            match list.remove(0).kind {
-                FormKind::UserFn {
-                    binds,
-                    body,
-                    env: _closure_env,
-                    ..
-                } => {
-                    let mut env = Env::new_with(env);
-                    for (bind, value) in binds.into_iter().zip(params) {
-                        // let result = eval(value, &mut env)?;
-                        env.set(bind.name, value);
-                    }
-                    Ok((*body, env))
-                }
-                _ => Err(Error::InvalidApply),
-            }
+            Ok((*body, env))
         }
-        _ => Err(Error::InvalidApply),
+        _ => panic!("apply_user_fn called with wrong Form type: {:?}", f),
     }
 }
 
@@ -107,17 +105,6 @@ impl Form {
             })
         } else {
             None
-        }
-    }
-
-    fn is_user_fn(&self) -> bool {
-        if let FormKind::List(ref inner) = self.kind {
-            inner
-                .first()
-                .map(|first| matches!(first.kind, FormKind::UserFn { .. }))
-                .unwrap_or(false)
-        } else {
-            false
         }
     }
 }
@@ -183,13 +170,13 @@ pub fn eval(mut form: Form, outer_env: &mut Env) -> Result<Form> {
             Some("if") => form = if_(form, env)?,
             Some("fn*") => return fn_(form, env),
             _ => {
-                form = eval_ast(form, env)?;
-                if form.is_user_fn() {
+                let (f, params) = extract_fn(eval_ast(form, env)?)?;
+                if f.is_user_fn() {
                     let new_env;
-                    (form, new_env) = apply_user_fn(form, env)?;
+                    (form, new_env) = apply_user_fn(f, params)?;
                     tco_env = Some(new_env);
                 } else {
-                    return apply_native_fn(form, env);
+                    return apply_native_fn(f, params);
                 }
             }
         }

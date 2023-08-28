@@ -1,4 +1,4 @@
-use crate::{Env, Result};
+use crate::{Env, Result, Error};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Ident {
@@ -25,11 +25,17 @@ macro_rules! form_predicate_fn {
 }
 
 impl Form {
+    form_predicate_fn!(is_nil, FormKind::Nil);
+    form_predicate_fn!(is_boolean, FormKind::Boolean(_));
+    form_predicate_fn!(is_symbol, FormKind::Symbol(_));
+    form_predicate_fn!(is_number, FormKind::Integer(_) | FormKind::Float(_));
+    form_predicate_fn!(is_string, FormKind::String(_));
+    form_predicate_fn!(is_keyword, FormKind::Keyword(_));
     form_predicate_fn!(is_list, FormKind::List(_));
-
-    pub fn is_empty_list(&self) -> bool {
-        matches!(self.kind, FormKind::List(ref inner) if inner.is_empty())
-    }
+    form_predicate_fn!(is_vector, FormKind::Vector(_));
+    form_predicate_fn!(is_hash_map, FormKind::HashMap(_));
+    form_predicate_fn!(is_native_fn, FormKind::NativeFn(_));
+    form_predicate_fn!(is_user_fn, FormKind::UserFn { .. });
 
     pub fn nil() -> Form {
         Form {
@@ -79,6 +85,10 @@ impl Form {
         }
     }
 
+    pub fn is_empty_list(&self) -> bool {
+        matches!(self.kind, FormKind::List(ref inner) if inner.is_empty())
+    }
+
     pub fn vector(value: impl IntoIterator<Item = Form>) -> Form {
         Form {
             kind: FormKind::Vector(value.into_iter().collect()),
@@ -105,6 +115,30 @@ impl Form {
                 body: Box::new(body),
                 env,
             },
+        }
+    }
+
+    pub fn iter(&self) -> Result<impl Iterator<Item = &Form>> {
+        match &self.kind {
+            FormKind::List(inner) => Ok(inner.iter()),
+            FormKind::Vector(inner) => Ok(inner.iter()),
+            _ => Err(Error::NotIterable),
+        }
+    }
+
+    pub fn iter_mut(&mut self) -> Result<impl Iterator<Item = &mut Form>> {
+        match &mut self.kind {
+            FormKind::List(inner) => Ok(inner.iter_mut()),
+            FormKind::Vector(inner) => Ok(inner.iter_mut()),
+            _ => Err(Error::NotIterable),
+        }
+    }
+
+    pub fn into_iter(self) -> Result<impl Iterator<Item = Form>> {
+        match self.kind {
+            FormKind::List(inner) => Ok(inner.into_iter()),
+            FormKind::Vector(inner) => Ok(inner.into_iter()),
+            _ => Err(Error::NotIterable),
         }
     }
 }
@@ -149,55 +183,3 @@ impl PartialEq<FormKind> for FormKind {
         }
     }
 }
-
-impl std::fmt::Debug for FormKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "FormKind::")?;
-        match self {
-            FormKind::Nil => f.write_str("Nil"),
-            FormKind::Boolean(val) => write!(f, "Boolean({:?})", val),
-            FormKind::Symbol(val) => write!(f, "Symbol({:?})", val),
-            FormKind::Integer(val) => write!(f, "Integer({:?})", val),
-            FormKind::Float(val) => write!(f, "Float({:?})", val),
-            FormKind::String(val) => write!(f, "String({:?})", val),
-            FormKind::Keyword(val) => write!(f, "Keyword({:?})", val),
-            FormKind::List(val) => write!(f, "List({:?})", val),
-            FormKind::Vector(val) => write!(f, "Vector({:?})", val),
-            FormKind::HashMap(val) => write!(f, "HashMap({:?})", val),
-            FormKind::NativeFn(_) => write!(f, "NativeFn(#<function>)"),
-            FormKind::UserFn { .. } => write!(f, "UserFn"),
-        }
-    }
-}
-
-//     pub fn expand(&self) -> Result<String, Error> {
-//         use nom::{
-//             branch::alt,
-//             bytes::complete::{escaped_transform, is_not, tag},
-//             combinator::value,
-//             sequence::delimited,
-//             IResult,
-//         };
-//         fn extract_and_expand(input: &str) -> IResult<&str, String> {
-//             alt((
-//                 value(String::new(), tag("\"\"")),
-//                 delimited(
-//                     tag("\""),
-//                     escaped_transform(
-//                         is_not("\\\""),
-//                         '\\',
-//                         alt((
-//                             value("\\", tag("\\")),
-//                             value("\"", tag("\"")),
-//                             value("\n", tag("n")),
-//                         )),
-//                     ),
-//                     tag("\""),
-//                 ),
-//             ))(input)
-//         }
-//         Ok(extract_and_expand(&self.value)
-//             .map(|result| result.1)
-//             .map_err(|_| Error::Eof)?)
-//     }
-// }

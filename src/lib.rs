@@ -36,6 +36,8 @@ pub enum Error {
     InvalidApply,
     #[error("could not convert integer")]
     NumberConversion,
+    #[error("attempted to iterate non-iterable Form")]
+    NotIterable,
 }
 
 impl From<Infallible> for Error {

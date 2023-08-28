@@ -25,7 +25,7 @@ pub fn pr_str(input: &Form) -> String {
         FormKind::Symbol(ident) => ident.name.to_string(),
         FormKind::Integer(n) => format!("{}", n),
         FormKind::Float(n) => format!("{}", n),
-        FormKind::String(s) => s.to_string(),
+        FormKind::String(s) => format!("\"{}\"", s),
         FormKind::Keyword(k) => k.to_string(),
         FormKind::List(list) => list_to_string(list, "(", ")"),
         FormKind::Vector(list) => list_to_string(list, "[", "]"),
@@ -34,3 +34,55 @@ pub fn pr_str(input: &Form) -> String {
         FormKind::UserFn { .. } => "#<function>".to_string(),
     }
 }
+
+impl std::fmt::Debug for FormKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "FormKind::")?;
+        match self {
+            FormKind::Nil => f.write_str("Nil"),
+            FormKind::Boolean(val) => write!(f, "Boolean({:?})", val),
+            FormKind::Symbol(val) => write!(f, "Symbol({:?})", val),
+            FormKind::Integer(val) => write!(f, "Integer({:?})", val),
+            FormKind::Float(val) => write!(f, "Float({:?})", val),
+            FormKind::String(val) => write!(f, "String({:?})", val),
+            FormKind::Keyword(val) => write!(f, "Keyword({:?})", val),
+            FormKind::List(val) => write!(f, "List({:?})", val),
+            FormKind::Vector(val) => write!(f, "Vector({:?})", val),
+            FormKind::HashMap(val) => write!(f, "HashMap({:?})", val),
+            FormKind::NativeFn(_) => write!(f, "NativeFn(#<function>)"),
+            FormKind::UserFn { .. } => write!(f, "UserFn"),
+        }
+    }
+}
+
+//     pub fn expand(&self) -> Result<String, Error> {
+//         use nom::{
+//             branch::alt,
+//             bytes::complete::{escaped_transform, is_not, tag},
+//             combinator::value,
+//             sequence::delimited,
+//             IResult,
+//         };
+//         fn extract_and_expand(input: &str) -> IResult<&str, String> {
+//             alt((
+//                 value(String::new(), tag("\"\"")),
+//                 delimited(
+//                     tag("\""),
+//                     escaped_transform(
+//                         is_not("\\\""),
+//                         '\\',
+//                         alt((
+//                             value("\\", tag("\\")),
+//                             value("\"", tag("\"")),
+//                             value("\n", tag("n")),
+//                         )),
+//                     ),
+//                     tag("\""),
+//                 ),
+//             ))(input)
+//         }
+//         Ok(extract_and_expand(&self.value)
+//             .map(|result| result.1)
+//             .map_err(|_| Error::Eof)?)
+//     }
+// }

@@ -62,6 +62,17 @@ impl TryInto<Ident> for Form {
     }
 }
 
+impl TryInto<String> for Form {
+    type Error = crate::Error;
+
+    fn try_into(self) -> std::result::Result<String, Self::Error> {
+        match self.kind {
+            FormKind::String(s) => Ok(s),
+            _ => Err(crate::Error::InvalidArgument),
+        }
+    }
+}
+
 macro_rules! tuple_impls {
     ($($len:tt => ($($name:ident $error:ident)+))+) => {
         $(

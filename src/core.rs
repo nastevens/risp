@@ -14,6 +14,8 @@ pub fn populate(env: &mut Env) {
     env.set("<=", Form::native_fn(&lte));
     env.set(">", Form::native_fn(&gt));
     env.set(">=", Form::native_fn(&gte));
+    env.set("prn", Form::native_fn(&prn));
+    env.set("pr-str", Form::native_fn(&pr_str));
 }
 
 fn add(params: Form) -> Result<Form> {
@@ -80,4 +82,16 @@ fn gt(params: Form) -> Result<Form> {
 fn gte(params: Form) -> Result<Form> {
     let (a, b): (i64, i64) = params.try_into()?;
     Ok(Form::boolean(a >= b))
+}
+
+fn pr_str(params: Form) -> Result<Form> {
+    let values = TryInto::<Vec<Form>>::try_into(params)?;
+    let strings = values.iter().map(crate::pr_str).collect::<Vec<String>>();
+    Ok(Form::string(strings.join(" ")))
+}
+
+fn prn(params: Form) -> Result<Form> {
+    let string: String = pr_str(params)?.try_into()?;
+    println!("{}", string);
+    Ok(Form::nil())
 }
