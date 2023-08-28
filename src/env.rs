@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{collections::HashMap, rc::Rc, sync::Mutex};
 
 use crate::{Error, Form, Result};
 
@@ -10,44 +10,44 @@ struct EnvInner {
 
 #[derive(Clone, Debug)]
 pub struct Env {
-    inner: Rc<EnvInner>,
+    inner: Rc<Mutex<EnvInner>>,
 }
 
 impl Env {
     pub fn new() -> Env {
         Env {
-            inner: Rc::new(EnvInner {
+            inner: Rc::new(Mutex::new(EnvInner {
                 data: HashMap::new(),
                 parent: None,
-            }),
+            })),
         }
     }
 
-    pub fn new_with(parent: Env) -> Env {
+    pub fn new_with(parent: &Env) -> Env {
         Env {
-            inner: Rc::new(EnvInner {
+            inner: Rc::new(Mutex::new(EnvInner {
                 data: HashMap::new(),
-                parent: Some(parent),
-            }),
+                parent: Some(parent.clone()),
+            })),
         }
     }
 
     pub fn set(&mut self, key: impl AsRef<str>, value: Form) {
-        Rc::make_mut(&mut self.inner)
+        self.inner
+            .lock()
+            .expect("Poisoned mutex")
             .data
             .insert(key.as_ref().into(), value);
     }
 
     pub fn get(&self, key: &str) -> Result<Form> {
-        let mut current = self;
-        loop {
-            if let Some(value) = (*current.inner).data.get(key) {
-                return Ok(value.clone());
-            } else if let Some(ref parent) = (*current.inner).parent {
-                current = parent;
-            } else {
-                return Err(Error::UnknownSymbol(key.into()));
-            }
+        let guard = self.inner.lock().expect("Poisoned mutex");
+        if let Some(value) = guard.data.get(key) {
+            Ok(value.clone())
+        } else if let Some(ref parent) = guard.parent {
+            parent.get(key)
+        } else {
+            Err(Error::UnknownSymbol(key.into()))
         }
     }
 }

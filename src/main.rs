@@ -13,8 +13,7 @@ fn print(input: Form) -> String {
 
 fn read_eval_print(input: &str, env: &mut Env) -> Result<String, Error> {
     let form = read(input)?;
-    let (evaluated, new_env) = eval::eval(form, env.clone())?;
-    *env = new_env;
+    let evaluated = eval::eval(form, env)?;
     Ok(print(evaluated))
 }
 
