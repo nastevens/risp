@@ -19,9 +19,7 @@ where
 }
 
 impl From<Form> for () {
-    fn from(_val: Form) -> Self {
-        
-    }
+    fn from(_val: Form) -> Self {}
 }
 
 impl From<Form> for bool {
