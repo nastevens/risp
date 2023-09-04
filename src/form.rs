@@ -11,6 +11,12 @@ impl Ident {
     }
 }
 
+impl PartialEq<str> for Ident {
+    fn eq(&self, other: &str) -> bool {
+        self.name == other
+    }
+}
+
 #[derive(Clone, PartialEq)]
 pub struct Form {
     pub kind: FormKind,
@@ -107,11 +113,11 @@ impl Form {
         }
     }
 
-    pub fn user_fn(binds: Vec<Ident>, body: Form, env: Env) -> Form {
+    pub fn user_fn(binds: Vec<Ident>, bind_rest: Option<Ident>, body: Form, env: Env) -> Form {
         Form {
             kind: FormKind::UserFn {
                 binds,
-                bind_rest: None,
+                bind_rest,
                 body: Box::new(body),
                 env,
             },
@@ -134,7 +140,7 @@ impl Form {
         }
     }
 
-    pub fn into_iter(self) -> Result<impl Iterator<Item = Form>> {
+    pub fn try_into_iter(self) -> Result<impl Iterator<Item = Form>> {
         match self.kind {
             FormKind::List(inner) => Ok(inner.into_iter()),
             FormKind::Vector(inner) => Ok(inner.into_iter()),

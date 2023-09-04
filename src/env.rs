@@ -8,6 +8,9 @@ struct EnvInner {
     parent: Option<Env>,
 }
 
+/// Env
+///
+/// Prefer the Extend implementation - it avoids repeatedly taking/releasing the mutex lock
 #[derive(Clone, Debug)]
 pub struct Env {
     inner: Rc<Mutex<EnvInner>>,
@@ -48,6 +51,15 @@ impl Env {
             parent.get(key)
         } else {
             Err(Error::UnknownSymbol(key.into()))
+        }
+    }
+}
+
+impl Extend<(String, Form)> for Env {
+    fn extend<T: IntoIterator<Item = (String, Form)>>(&mut self, iter: T) {
+        let data = &mut self.inner.lock().expect("Poisoned mutex").data;
+        for elem in iter {
+            data.insert(elem.0, elem.1);
         }
     }
 }

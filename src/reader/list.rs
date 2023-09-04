@@ -4,7 +4,6 @@ use crate::{
 };
 use std::iter::Peekable;
 
-
 struct ListInner {
     start_symbol: &'static str,
     end_symbol: &'static str,

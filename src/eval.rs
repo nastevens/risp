@@ -28,9 +28,15 @@ fn let_(form: Form, env: &Env) -> Result<(Form, Env)> {
 }
 
 fn fn_(form: Form, env: &Env) -> Result<Form> {
-    let (_, binds, body): ((), Vec<Ident>, Form) = form.try_into()?;
+    let (_, bind_symbols, body): ((), Vec<Ident>, Form) = form.try_into()?;
+    let mut iter = bind_symbols.into_iter();
+    let binds = iter
+        .by_ref()
+        .take_while(|ident| ident.name != "&")
+        .collect::<Vec<_>>();
+    let bind_rest = iter.next();
     let closure_env = Env::new_with(env);
-    Ok(Form::user_fn(binds, body, closure_env))
+    Ok(Form::user_fn(binds, bind_rest, body, closure_env))
 }
 
 fn if_(form: Form, env: &mut Env) -> Result<Form> {
@@ -82,13 +88,27 @@ fn apply_user_fn(f: Form, params: Form) -> Result<(Form, Env)> {
     match f.kind {
         FormKind::UserFn {
             binds,
+            bind_rest,
             body,
             env: closure_env,
-            ..
         } => {
             let mut env = Env::new_with(&closure_env);
-            for (bind, value) in binds.into_iter().zip(params.into_iter()?) {
-                env.set(bind.name, value);
+            let mut param_iter = params.try_into_iter()?.fuse();
+            let mut binds_iter = binds.into_iter().fuse();
+            let mut rest = Vec::new();
+            loop {
+                match (binds_iter.next(), param_iter.next()) {
+                    (Some(bind), Some(value)) => env.set(bind.name, value),
+                    (None, Some(value)) if bind_rest.is_some() => rest.push(value),
+                    (None, Some(_)) => {
+                        // Parameter isn't used, no reason to save it
+                    }
+                    (Some(_), None) => return Err(Error::InvalidArgument), //TODO need a better error
+                    (None, None) => break,
+                }
+            }
+            if let Some(bind_rest_ident) = bind_rest {
+                env.set(bind_rest_ident.name, Form::list(rest));
             }
             Ok((*body, env))
         }
