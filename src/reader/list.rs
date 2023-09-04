@@ -1,9 +1,9 @@
-use std::iter::Peekable;
-
 use crate::{
     form::{Form, FormKind},
     Error,
 };
+use std::iter::Peekable;
+
 
 struct ListInner {
     start_symbol: &'static str,

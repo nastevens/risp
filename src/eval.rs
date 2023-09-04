@@ -148,6 +148,7 @@ pub fn eval_ast(form: Form, env: &mut Env) -> Result<Form> {
 pub fn eval(mut form: Form, outer_env: &mut Env) -> Result<Form> {
     let mut tco_env: Option<Env> = None;
     loop {
+        tracing::trace!(?form);
         let env = if let Some(ref mut inner_env) = tco_env {
             inner_env
         } else {

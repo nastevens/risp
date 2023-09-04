@@ -1,5 +1,6 @@
 use risp::{eval, form::Form, Env, Error};
 use rustyline::{error::ReadlineError, DefaultEditor};
+use tracing_subscriber;
 
 const HISTORY_FILE: &str = ".risp-history";
 
@@ -18,6 +19,8 @@ fn read_eval_print(input: &str, env: &mut Env) -> Result<String, Error> {
 }
 
 fn main() {
+    tracing_subscriber::fmt::init();
+
     let mut rl = DefaultEditor::new().expect("initializing rustyline");
     if rl.load_history(HISTORY_FILE).is_err() {
         eprintln!("No previous history.");

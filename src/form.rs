@@ -11,7 +11,7 @@ impl Ident {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Form {
     pub kind: FormKind,
 }
