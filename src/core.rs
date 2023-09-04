@@ -16,6 +16,7 @@ pub fn populate(env: &mut Env) {
     env.set(">=", Form::native_fn(&gte));
     env.set("prn", Form::native_fn(&prn));
     env.set("pr-str", Form::native_fn(&pr_str));
+    crate::eval_str("(def! not (fn* (a) (if a false true)))", env);
 }
 
 fn add(params: Form) -> Result<Form> {

@@ -1,4 +1,4 @@
-use risp::{eval, form::Form, Env, Error};
+use risp::{form::Form, Env, Error};
 use rustyline::{error::ReadlineError, DefaultEditor};
 use tracing_subscriber;
 
@@ -14,7 +14,7 @@ fn print(input: Form) -> String {
 
 fn read_eval_print(input: &str, env: &mut Env) -> Result<String, Error> {
     let form = read(input)?;
-    let evaluated = eval::eval(form, env)?;
+    let evaluated = risp::eval(form, env)?;
     Ok(print(evaluated))
 }
 
@@ -28,6 +28,7 @@ fn main() {
 
     let mut env = Env::new();
     risp::core::populate(&mut env);
+    let _ = read_eval_print("", &mut env);
     loop {
         match rl.readline("user> ") {
             Ok(line) if line.is_empty() => continue,

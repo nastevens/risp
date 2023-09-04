@@ -12,6 +12,7 @@ use std::{convert::Infallible, num::TryFromIntError};
 
 pub use env::Env;
 pub use form::{Form, FormKind};
+pub use eval::eval;
 pub use format::pr_str;
 pub use reader::read_str;
 use thiserror::Error;
@@ -51,3 +52,9 @@ impl From<TryFromIntError> for Error {
         Error::NumberConversion
     }
 }
+
+fn eval_str(s: &str, env: &mut Env) {
+    let parsed = read_str(s).unwrap_or_else(|e| panic!("Could not parse eval_str: {e}"));
+    eval(parsed, env).unwrap_or_else(|e| panic!("eval_str input '{s}' failed: {e}"));
+}
+
