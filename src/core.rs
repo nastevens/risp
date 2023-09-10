@@ -1,4 +1,5 @@
 use crate::{Env, Form, Result};
+use std::fmt::Write;
 
 pub fn populate(env: &mut Env) {
     env.set("+", Form::native_fn(&add));
@@ -14,8 +15,10 @@ pub fn populate(env: &mut Env) {
     env.set("<=", Form::native_fn(&lte));
     env.set(">", Form::native_fn(&gt));
     env.set(">=", Form::native_fn(&gte));
-    env.set("prn", Form::native_fn(&prn));
     env.set("pr-str", Form::native_fn(&pr_str));
+    env.set("str", Form::native_fn(&str_));
+    env.set("prn", Form::native_fn(&prn));
+    env.set("println", Form::native_fn(&println_));
     crate::eval_str("(def! not (fn* (a) (if a false true)))", env);
 }
 
@@ -86,13 +89,43 @@ fn gte(params: Form) -> Result<Form> {
 }
 
 fn pr_str(params: Form) -> Result<Form> {
-    let values = TryInto::<Vec<Form>>::try_into(params)?;
-    let strings = values.iter().map(crate::pr_str).collect::<Vec<String>>();
-    Ok(Form::string(strings.join(" ")))
+    let forms: Vec<Form> = params.try_into()?;
+    let mut sep = "";
+    let mut s = String::new();
+    for form in forms {
+        let _ = write!(&mut s, "{sep}{form:?}");
+        sep = " ";
+    }
+    Ok(Form::string(s))
+}
+
+fn str_(params: Form) -> Result<Form> {
+    let forms: Vec<Form> = params.try_into()?;
+    let mut s = String::new();
+    for form in forms {
+        let _ = write!(&mut s, "{form}");
+    }
+    Ok(Form::string(s))
 }
 
 fn prn(params: Form) -> Result<Form> {
-    let string: String = pr_str(params)?.try_into()?;
-    println!("{}", string);
+    let forms: Vec<Form> = params.try_into()?;
+    let mut sep = "";
+    for form in forms {
+        print!("{sep}{form:?}");
+        sep = " ";
+    }
+    print!("\n");
+    Ok(Form::nil())
+}
+
+fn println_(params: Form) -> Result<Form> {
+    let forms: Vec<Form> = params.try_into()?;
+    let mut sep = "";
+    for form in forms {
+        print!("{sep}{form}");
+        sep = " ";
+    }
+    print!("\n");
     Ok(Form::nil())
 }

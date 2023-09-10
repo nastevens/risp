@@ -106,9 +106,19 @@ fn read_number<'a>(
 fn read_string<'a>(
     token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
 ) -> Option<Result<Form, Error>> {
+    use aho_corasick::AhoCorasick;
+    use std::sync::OnceLock;
+    static AC: OnceLock<AhoCorasick> = OnceLock::new();
+    const PATTERNS: &[&str] = &["\\\\", "\\n", "\\\""];
+    const REPLACEMENTS: &[&str] = &["\\", "\n", "\""];
     token_iter.next().map(|value| {
+        let no_quotes = &value[1..(value.len() - 1)];
+        let escape_replacment = AC.get_or_init(|| {
+            AhoCorasick::new(PATTERNS).expect("parsing static AhoCorasick patterns")
+        });
+        let escaped = escape_replacment.replace_all(no_quotes, REPLACEMENTS);
         Ok(Form {
-            kind: FormKind::String(value.to_string()),
+            kind: FormKind::String(escaped),
         })
     })
 }

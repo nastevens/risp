@@ -1,25 +1,47 @@
+use std::sync::OnceLock;
+
 use crate::form::{Form, FormKind};
 
 pub fn pr_str(input: &Form) -> String {
     format!("{:?}", input.kind)
 }
 
-fn fmt_list<'a>(
-    list: &[Form],
+struct ListWriter<'a> {
+    values: &'a [Form],
     start: &'static str,
     end: &'static str,
-    f: &mut std::fmt::Formatter<'_>,
-) -> std::fmt::Result {
-    f.write_str(start)?;
-    let mut has_fields = false;
-    for form in list {
-        if has_fields {
-            f.write_str(" ")?;
-        }
-        std::fmt::Debug::fmt(form, f)?;
-        has_fields = true;
+}
+
+impl<'a> ListWriter<'a> {
+    pub fn new(values: &'a [Form], start: &'static str, end: &'static str) -> ListWriter<'a> {
+        ListWriter { values, start, end }
     }
-    f.write_str(end)
+
+    pub fn write<F>(&self, fmt: F, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
+    where
+        F: Fn(&Form, &mut std::fmt::Formatter) -> std::fmt::Result,
+    {
+        f.write_str(self.start)?;
+        let mut has_fields = false;
+        for form in self.values {
+            if has_fields {
+                f.write_str(" ")?;
+            }
+            fmt(form, f)?;
+            has_fields = true;
+        }
+        f.write_str(self.end)
+    }
+}
+
+fn escape_unprintable(s: &str) -> String {
+    use aho_corasick::AhoCorasick;
+    static AC: OnceLock<AhoCorasick> = OnceLock::new();
+    const PATTERNS: &[&str] = &["\\", "\n", "\""];
+    const REPLACEMENTS: &[&str] = &["\\\\", "\\n", "\\\""];
+    let escape_replacment =
+        AC.get_or_init(|| AhoCorasick::new(PATTERNS).expect("parsing static AhoCorasick patterns"));
+    escape_replacment.replace_all(s, REPLACEMENTS)
 }
 
 impl std::fmt::Debug for Form {
@@ -30,52 +52,41 @@ impl std::fmt::Debug for Form {
 
 impl std::fmt::Debug for FormKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use std::fmt::{Debug, Display};
         match self {
             FormKind::Nil => f.write_str("nil"),
-            FormKind::Boolean(b) => Debug::fmt(b, f),
-            FormKind::Symbol(ident) => Display::fmt(&ident.name, f),
-            FormKind::Integer(n) => Debug::fmt(n, f),
-            FormKind::Float(n) => Debug::fmt(n, f),
-            FormKind::String(s) => Display::fmt(s, f),
-            FormKind::Keyword(k) => Display::fmt(k, f),
-            FormKind::List(val) => fmt_list(val, "(", ")", f),
-            FormKind::Vector(val) => fmt_list(val, "[", "]", f),
-            FormKind::HashMap(val) => fmt_list(val, "{", "}", f),
+            FormKind::Boolean(b) => write!(f, "{b}"),
+            FormKind::Symbol(ident) => write!(f, "{}", &ident.name),
+            FormKind::Integer(n) => write!(f, "{n}"),
+            FormKind::Float(n) => write!(f, "{n}"),
+            FormKind::String(s) => write!(f, "\"{}\"", escape_unprintable(s)),
+            FormKind::Keyword(k) => write!(f, "{k}"),
+            FormKind::List(val) => ListWriter::new(val, "(", ")").write(std::fmt::Debug::fmt, f),
+            FormKind::Vector(val) => ListWriter::new(val, "[", "]").write(std::fmt::Debug::fmt, f),
+            FormKind::HashMap(val) => ListWriter::new(val, "{", "}").write(std::fmt::Debug::fmt, f),
             FormKind::NativeFn(_) => write!(f, "#<function>"),
             FormKind::UserFn { .. } => write!(f, "#<function>"),
         }
     }
 }
 
-//     pub fn expand(&self) -> Result<String, Error> {
-//         use nom::{
-//             branch::alt,
-//             bytes::complete::{escaped_transform, is_not, tag},
-//             combinator::value,
-//             sequence::delimited,
-//             IResult,
-//         };
-//         fn extract_and_expand(input: &str) -> IResult<&str, String> {
-//             alt((
-//                 value(String::new(), tag("\"\"")),
-//                 delimited(
-//                     tag("\""),
-//                     escaped_transform(
-//                         is_not("\\\""),
-//                         '\\',
-//                         alt((
-//                             value("\\", tag("\\")),
-//                             value("\"", tag("\"")),
-//                             value("\n", tag("n")),
-//                         )),
-//                     ),
-//                     tag("\""),
-//                 ),
-//             ))(input)
-//         }
-//         Ok(extract_and_expand(&self.value)
-//             .map(|result| result.1)
-//             .map_err(|_| Error::Eof)?)
-//     }
-// }
+impl std::fmt::Display for Form {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.kind, f)
+    }
+}
+
+impl std::fmt::Display for FormKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FormKind::String(s) => write!(f, "{s}"),
+            FormKind::List(val) => ListWriter::new(val, "(", ")").write(std::fmt::Display::fmt, f),
+            FormKind::Vector(val) => {
+                ListWriter::new(val, "[", "]").write(std::fmt::Display::fmt, f)
+            }
+            FormKind::HashMap(val) => {
+                ListWriter::new(val, "{", "}").write(std::fmt::Display::fmt, f)
+            }
+            other => std::fmt::Debug::fmt(other, f),
+        }
+    }
+}

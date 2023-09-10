@@ -4,18 +4,9 @@ use tracing_subscriber;
 
 const HISTORY_FILE: &str = ".risp-history";
 
-fn read(input: &str) -> Result<Form, Error> {
-    risp::read_str(input)
-}
-
-fn print(input: Form) -> String {
-    risp::pr_str(&input)
-}
-
-fn read_eval_print(input: &str, env: &mut Env) -> Result<String, Error> {
-    let form = read(input)?;
-    let evaluated = risp::eval(form, env)?;
-    Ok(print(evaluated))
+fn read_eval(input: &str, env: &mut Env) -> Result<Form, Error> {
+    let form = risp::read_str(input)?;
+    Ok(risp::eval(form, env)?)
 }
 
 fn main() {
@@ -28,7 +19,7 @@ fn main() {
 
     let mut env = Env::new();
     risp::core::populate(&mut env);
-    let _ = read_eval_print("", &mut env);
+    let _ = read_eval("", &mut env);
     loop {
         match rl.readline("user> ") {
             Ok(line) if line.is_empty() => continue,
@@ -36,9 +27,9 @@ fn main() {
                 if !line.is_empty() {
                     let _ = rl.add_history_entry(&line);
                     rl.save_history(HISTORY_FILE).expect("saving history");
-                    match read_eval_print(&line, &mut env) {
-                        Ok(result) => println!("{}", result),
-                        Err(e) => eprintln!("{}", e),
+                    match read_eval(&line, &mut env) {
+                        Ok(result) => println!("{:?}", result),
+                        Err(e) => eprintln!("{:?}", e),
                     }
                 }
             }
