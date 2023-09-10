@@ -180,8 +180,9 @@ impl PartialEq<FormKind> for FormKind {
             (FormKind::Float(a), FormKind::Float(b)) => *a == *b,
             (FormKind::String(a), FormKind::String(b)) => *a == *b,
             (FormKind::Keyword(a), FormKind::Keyword(b)) => *a == *b,
-            (FormKind::List(a), FormKind::List(b)) => *a == *b,
-            (FormKind::Vector(a), FormKind::Vector(b)) => *a == *b,
+            (FormKind::List(a) | FormKind::Vector(a), FormKind::List(b) | FormKind::Vector(b)) => {
+                *a == *b
+            }
             (FormKind::HashMap(a), FormKind::HashMap(b)) => *a == *b,
             (FormKind::NativeFn(_), _) => false,
             (FormKind::UserFn { .. }, _) => false,
