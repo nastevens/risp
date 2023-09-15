@@ -41,6 +41,8 @@ pub enum Error {
     NotIterable,
     #[error("error reading file")]
     FileReadError(#[from] std::io::Error),
+    #[error("form is not callable")]
+    NotCallable,
 }
 
 impl From<Infallible> for Error {

@@ -18,6 +18,8 @@ fn main() {
     }
 
     let mut env = Env::new();
+    let args = Form::list(std::env::args().skip(1).map(|s| Form::string(s)));
+    env.set("*ARGV*", args);
     risp::core::populate(&mut env);
     let _ = read_eval("", &mut env);
     loop {

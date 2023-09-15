@@ -180,6 +180,11 @@ fn reset(params: Form) -> Result<Form> {
 }
 
 fn swap(params: Form) -> Result<Form> {
-    let (atom, _func, rest): (Atom, Form, Rest) = params.try_into()?;
-    Ok(Form::list([atom.into(), Form::list(rest.values)]))
+    let (atom, func, Rest { values: rest }): (Atom, Form, Rest) = params.try_into()?;
+    let mut handle = atom.value.borrow_mut();
+    let old_value = std::mem::replace(&mut *handle, Form::nil());
+    let mut args = vec![old_value];
+    args.extend(rest);
+    *handle = func.call(Form::list(args))?;
+    Ok(handle.clone())
 }

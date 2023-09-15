@@ -127,6 +127,18 @@ impl Form {
             None
         }
     }
+
+    pub fn call(self, params: Form) -> Result<Form> {
+        if self.is_native_fn() {
+            apply_native_fn(self, params)
+        } else if self.is_user_fn() {
+            apply_user_fn(self, params).and_then(|(form, mut env)| {
+                eval(form, &mut env)
+            })
+        } else {
+            Err(Error::NotCallable)
+        }
+    }
 }
 
 fn eval_(form: Form, env: &mut Env) -> Result<Form> {

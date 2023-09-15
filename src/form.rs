@@ -40,6 +40,10 @@ impl From<Atom> for Form {
     }
 }
 
+pub trait Callable {
+    fn call(params: Form) -> Result<Form>;
+}
+
 #[derive(Clone, PartialEq)]
 pub struct Form {
     pub kind: FormKind,
