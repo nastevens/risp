@@ -28,6 +28,8 @@ pub fn populate(env: &mut Env) {
             ("deref", Form::native_fn(&deref)),
             ("reset!", Form::native_fn(&reset)),
             ("swap!", Form::native_fn(&swap)),
+            ("cons", Form::native_fn(&cons)),
+            ("concat", Form::native_fn(&concat)),
         ]
         .into_iter()
         .map(|(symbol, func)| (symbol.to_string(), func)),
@@ -187,4 +189,15 @@ fn swap(params: Form) -> Result<Form> {
     args.extend(rest);
     *handle = func.call(Form::list(args))?;
     Ok(handle.clone())
+}
+
+fn cons(params: Form) -> Result<Form> {
+    let (x, mut seq): (Form, Vec<Form>) = params.try_into()?;
+    seq.insert(0, x);
+    Ok(Form::list(seq))
+}
+
+fn concat(params: Form) -> Result<Form> {
+    let lists: Vec<Vec<Form>> = params.try_into()?;
+    Ok(Form::list(lists.into_iter().flatten()))
 }
