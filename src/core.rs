@@ -19,7 +19,10 @@ pub fn populate(env: &mut Env) {
     env.set("str", Form::native_fn(&str_));
     env.set("prn", Form::native_fn(&prn));
     env.set("println", Form::native_fn(&println_));
-    crate::eval_str("(def! not (fn* (a) (if a false true)))", env);
+    env.set("read-string", Form::native_fn(&read_string));
+    env.set("slurp", Form::native_fn(&slurp));
+    crate::eval_str(r#"(def! not (fn* (a) (if a false true)))"#, env);
+    crate::eval_str(r#"(def! load-file (fn* (f) (eval (read-string (str "(do " (slurp f) "\nnil)")))))"#, env);
 }
 
 fn add(params: Form) -> Result<Form> {
@@ -128,4 +131,14 @@ fn println_(params: Form) -> Result<Form> {
     }
     print!("\n");
     Ok(Form::nil())
+}
+
+fn read_string(params: Form) -> Result<Form> {
+    let (s,): (String,) = params.try_into()?;
+    crate::read_str(&s)
+}
+
+fn slurp(params: Form) -> Result<Form> {
+    let (file,): (String,) = params.try_into()?;
+    Ok(Form::string(std::fs::read_to_string(file)?))
 }

@@ -43,14 +43,25 @@ impl Env {
             .insert(key.as_ref().into(), value);
     }
 
+    /// Get the value assigned to `key`, or return an `UnknownSymbol` error
     pub fn get(&self, key: &str) -> Result<Form> {
         let guard = self.inner.lock().expect("Poisoned mutex");
+        // Food
         if let Some(value) = guard.data.get(key) {
             Ok(value.clone())
         } else if let Some(ref parent) = guard.parent {
             parent.get(key)
         } else {
             Err(Error::UnknownSymbol(key.into()))
+        }
+    }
+
+    /// Retrieve the root environment
+    pub fn root(&self) -> Env {
+        if let Some(ref parent) = self.inner.lock().expect("Poisoned mutex").parent {
+            return parent.root();
+        } else {
+            return self.clone();
         }
     }
 }

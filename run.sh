@@ -1,2 +1,2 @@
 #!/bin/sh
-cargo run
+cargo run --manifest-path ~/dev/risp/Cargo.toml

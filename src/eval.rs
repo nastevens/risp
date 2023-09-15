@@ -129,6 +129,12 @@ impl Form {
     }
 }
 
+fn eval_(form: Form, env: &mut Env) -> Result<Form> {
+    let (_, param): (Form, Form) = form.try_into()?;
+    let evaluated = eval(param, env)?;
+    eval(evaluated, &mut env.root())
+}
+
 pub fn eval_ast(form: Form, env: &mut Env) -> Result<Form> {
     match form {
         Form {
@@ -190,6 +196,7 @@ pub fn eval(mut form: Form, outer_env: &mut Env) -> Result<Form> {
             Some("do") => form = do_(form, env)?,
             Some("if") => form = if_(form, env)?,
             Some("fn*") => return fn_(form, env),
+            Some("eval") => return eval_(form, env),
             _ => {
                 let (f, params) = extract_fn(eval_ast(form, env)?)?;
                 if f.is_user_fn() {

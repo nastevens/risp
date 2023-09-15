@@ -19,7 +19,7 @@ use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, crate::Error>;
 
-#[derive(Clone, Debug, Error)]
+#[derive(Debug, Error)]
 pub enum Error {
     #[error("unexpected end of input")]
     Eof,
@@ -39,6 +39,8 @@ pub enum Error {
     NumberConversion,
     #[error("attempted to iterate non-iterable Form")]
     NotIterable,
+    #[error("error reading file")]
+    FileReadError(#[from] std::io::Error),
 }
 
 impl From<Infallible> for Error {
