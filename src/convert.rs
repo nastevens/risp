@@ -1,4 +1,4 @@
-use crate::{form::Ident, Form, FormKind, Result};
+use crate::{form::{Ident, Atom}, Form, FormKind, Result};
 
 impl<T, E> TryInto<Vec<T>> for Form
 where
@@ -69,6 +69,18 @@ impl TryInto<String> for Form {
             _ => Err(crate::Error::InvalidArgument),
         }
     }
+}
+
+impl TryInto<Atom> for Form {
+    type Error = crate::Error;
+
+    fn try_into(self) -> std::result::Result<Atom, Self::Error> {
+        match self.kind {
+            FormKind::Atom(atom) => Ok(atom),
+            _ => Err(crate::Error::InvalidArgument),
+        }
+    }
+    
 }
 
 macro_rules! tuple_impls {

@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use crate::form::{Form, FormKind};
+use crate::form::{Form, FormKind, Atom};
 
 pub fn pr_str(input: &Form) -> String {
     format!("{:?}", input.kind)
@@ -65,6 +65,7 @@ impl std::fmt::Debug for FormKind {
             FormKind::HashMap(val) => ListWriter::new(val, "{", "}").write(std::fmt::Debug::fmt, f),
             FormKind::NativeFn(_) => write!(f, "#<function>"),
             FormKind::UserFn { .. } => write!(f, "#<function>"),
+            FormKind::Atom(atom) => write!(f, "(atom {:?})", *atom.value),
         }
     }
 }
@@ -86,6 +87,7 @@ impl std::fmt::Display for FormKind {
             FormKind::HashMap(val) => {
                 ListWriter::new(val, "{", "}").write(std::fmt::Display::fmt, f)
             }
+            FormKind::Atom(Atom { value }) => write!(f, "{}", value.borrow()),
             other => std::fmt::Debug::fmt(other, f),
         }
     }

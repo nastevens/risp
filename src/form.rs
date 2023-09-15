@@ -1,3 +1,5 @@
+use std::{rc::Rc, cell::RefCell};
+
 use crate::{Env, Error, Result};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -14,6 +16,27 @@ impl Ident {
 impl PartialEq<str> for Ident {
     fn eq(&self, other: &str) -> bool {
         self.name == other
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Atom {
+    pub value: Rc<RefCell<Form>>,
+}
+
+impl Atom {
+    pub fn new(form: Form) -> Atom {
+        Atom {
+            value: Rc::new(RefCell::new(form)),
+        }
+    }
+}
+
+impl From<Atom> for Form {
+    fn from(atom: Atom) -> Form {
+        Form {
+            kind: FormKind::Atom(atom),
+        }
     }
 }
 
@@ -42,6 +65,7 @@ impl Form {
     form_predicate_fn!(is_hash_map, FormKind::HashMap(_));
     form_predicate_fn!(is_native_fn, FormKind::NativeFn(_));
     form_predicate_fn!(is_user_fn, FormKind::UserFn { .. });
+    form_predicate_fn!(is_atom, FormKind::Atom(_));
 
     pub fn nil() -> Form {
         Form {
@@ -124,6 +148,12 @@ impl Form {
         }
     }
 
+    pub fn atom(atom: Atom) -> Form {
+        Form {
+            kind: FormKind::Atom(atom),
+        }
+    }
+
     pub fn iter(&self) -> Result<impl Iterator<Item = &Form>> {
         match &self.kind {
             FormKind::List(inner) => Ok(inner.iter()),
@@ -168,6 +198,7 @@ pub enum FormKind {
         body: Box<Form>,
         env: Env,
     },
+    Atom(Atom),
 }
 
 impl PartialEq<FormKind> for FormKind {
