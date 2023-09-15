@@ -1,4 +1,20 @@
-use crate::{form::{Ident, Atom}, Form, FormKind, Result};
+use crate::{
+    form::{Atom, Ident},
+    Form, FormKind, Result,
+};
+
+#[derive(Debug)]
+pub struct Rest {
+    pub(crate) values: Vec<Form>,
+}
+
+impl Rest {
+    pub fn new(iter: impl IntoIterator<Item = Form>) -> Rest {
+        Rest {
+            values: iter.into_iter().collect(),
+        }
+    }
+}
 
 impl<T, E> TryInto<Vec<T>> for Form
 where
@@ -80,7 +96,6 @@ impl TryInto<Atom> for Form {
             _ => Err(crate::Error::InvalidArgument),
         }
     }
-    
 }
 
 macro_rules! tuple_impls {
@@ -91,6 +106,7 @@ macro_rules! tuple_impls {
                 $(
                     Form: TryInto<$name, Error = $error>,
                     crate::Error: From<$error>,
+                    $name: 'static,
                 )+
             {
                 type Error = crate::Error;
@@ -108,6 +124,31 @@ macro_rules! tuple_impls {
                             } else {
                                 Err(crate::Error::InvalidArgument)
                             }
+                        }
+                        _ => Err(crate::Error::InvalidArgument),
+                    }
+                }
+            }
+
+            impl<$($name, $error),+,> TryInto<($($name,)+ Rest)> for Form
+            where
+                $(
+                    Form: TryInto<$name, Error = $error>,
+                    crate::Error: From<$error>,
+                    $name: 'static,
+                )+
+            {
+                type Error = crate::Error;
+
+                #[allow(non_snake_case)]
+                fn try_into(self) -> std::result::Result<($($name,)+ Rest), crate::Error> {
+                    match self.kind {
+                        crate::form::FormKind::List(mut inner) => {
+                            let mut iter = inner.drain(..).fuse();
+                            $(
+                                let $name = Into::<Form>::into(iter.next()).try_into()?;
+                            )+
+                            Ok(($($name,)+ Rest::new(iter)))
                         }
                         _ => Err(crate::Error::InvalidArgument),
                     }

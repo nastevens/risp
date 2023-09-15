@@ -1,30 +1,37 @@
-use crate::{form::Atom, Env, Form, Result};
+use crate::{convert::Rest, form::Atom, Env, Form, Result};
 use std::fmt::Write;
 
 pub fn populate(env: &mut Env) {
-    env.set("+", Form::native_fn(&add));
-    env.set("-", Form::native_fn(&sub));
-    env.set("*", Form::native_fn(&mul));
-    env.set("/", Form::native_fn(&div));
-    env.set("list", Form::native_fn(&list));
-    env.set("list?", Form::native_fn(&is_list));
-    env.set("empty?", Form::native_fn(&is_empty));
-    env.set("count", Form::native_fn(&count));
-    env.set("=", Form::native_fn(&eq));
-    env.set("<", Form::native_fn(&lt));
-    env.set("<=", Form::native_fn(&lte));
-    env.set(">", Form::native_fn(&gt));
-    env.set(">=", Form::native_fn(&gte));
-    env.set("pr-str", Form::native_fn(&pr_str));
-    env.set("str", Form::native_fn(&str_));
-    env.set("prn", Form::native_fn(&prn));
-    env.set("println", Form::native_fn(&println_));
-    env.set("read-string", Form::native_fn(&read_string));
-    env.set("slurp", Form::native_fn(&slurp));
-    env.set("atom", Form::native_fn(&atom));
-    env.set("atom?", Form::native_fn(&is_atom));
-    env.set("deref", Form::native_fn(&deref));
-    env.set("reset!", Form::native_fn(&reset));
+    env.extend(
+        [
+            ("+", Form::native_fn(&add)),
+            ("-", Form::native_fn(&sub)),
+            ("*", Form::native_fn(&mul)),
+            ("/", Form::native_fn(&div)),
+            ("list", Form::native_fn(&list)),
+            ("list?", Form::native_fn(&is_list)),
+            ("empty?", Form::native_fn(&is_empty)),
+            ("count", Form::native_fn(&count)),
+            ("=", Form::native_fn(&eq)),
+            ("<", Form::native_fn(&lt)),
+            ("<=", Form::native_fn(&lte)),
+            (">", Form::native_fn(&gt)),
+            (">=", Form::native_fn(&gte)),
+            ("pr-str", Form::native_fn(&pr_str)),
+            ("str", Form::native_fn(&str_)),
+            ("prn", Form::native_fn(&prn)),
+            ("println", Form::native_fn(&println_)),
+            ("read-string", Form::native_fn(&read_string)),
+            ("slurp", Form::native_fn(&slurp)),
+            ("atom", Form::native_fn(&atom)),
+            ("atom?", Form::native_fn(&is_atom)),
+            ("deref", Form::native_fn(&deref)),
+            ("reset!", Form::native_fn(&reset)),
+            ("swap!", Form::native_fn(&swap)),
+        ]
+        .into_iter()
+        .map(|(symbol, func)| (symbol.to_string(), func)),
+    );
     crate::eval_str(r#"(def! not (fn* (a) (if a false true)))"#, env);
     crate::eval_str(
         r#"(def! load-file (fn* (f) (eval (read-string (str "(do " (slurp f) "\nnil)")))))"#,
@@ -170,4 +177,9 @@ fn reset(params: Form) -> Result<Form> {
     let (atom, form): (Atom, Form) = params.try_into()?;
     *atom.value.borrow_mut() = form.clone();
     Ok(form)
+}
+
+fn swap(params: Form) -> Result<Form> {
+    let (atom, _func, rest): (Atom, Form, Rest) = params.try_into()?;
+    Ok(Form::list([atom.into(), Form::list(rest.values)]))
 }
