@@ -16,6 +16,12 @@ impl Rest {
     }
 }
 
+impl From<Rest> for Form {
+    fn from(rest: Rest) -> Self {
+        Form::list(rest.values)
+    }
+}
+
 impl<T, E> TryInto<Vec<T>> for Form
 where
     Form: TryInto<T, Error = E>,
@@ -114,7 +120,7 @@ macro_rules! tuple_impls {
                 #[allow(non_snake_case)]
                 fn try_into(self) -> std::result::Result<($($name,)+), crate::Error> {
                     match self.kind {
-                        crate::form::FormKind::List(mut inner) => {
+                        crate::form::FormKind::List(mut inner) | crate::form::FormKind::Vector(mut inner) => {
                             let mut iter = inner.drain(..).fuse();
                             $(
                                 let $name = Into::<Form>::into(iter.next()).try_into()?;
@@ -143,7 +149,7 @@ macro_rules! tuple_impls {
                 #[allow(non_snake_case)]
                 fn try_into(self) -> std::result::Result<($($name,)+ Rest), crate::Error> {
                     match self.kind {
-                        crate::form::FormKind::List(mut inner) => {
+                        crate::form::FormKind::List(mut inner) | crate::form::FormKind::Vector(mut inner) => {
                             let mut iter = inner.drain(..).fuse();
                             $(
                                 let $name = Into::<Form>::into(iter.next()).try_into()?;

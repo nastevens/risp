@@ -43,6 +43,8 @@ pub enum Error {
     FileReadError(#[from] std::io::Error),
     #[error("form is not callable")]
     NotCallable,
+    #[error("index {0} out of range")]
+    IndexOutOfRange(usize),
 }
 
 impl From<Infallible> for Error {

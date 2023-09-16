@@ -144,6 +144,7 @@ impl Form {
                 bind_rest,
                 body: Box::new(body),
                 env,
+                is_macro: false,
             },
         }
     }
@@ -151,6 +152,18 @@ impl Form {
     pub fn atom(atom: Atom) -> Form {
         Form {
             kind: FormKind::Atom(atom),
+        }
+    }
+
+    pub fn macro_(binds: Vec<Ident>, bind_rest: Option<Ident>, body: Form, env: Env) -> Form {
+        Form {
+            kind: FormKind::UserFn {
+                binds,
+                bind_rest,
+                body: Box::new(body),
+                env,
+                is_macro: false,
+            },
         }
     }
 
@@ -215,6 +228,7 @@ pub enum FormKind {
         bind_rest: Option<Ident>,
         body: Box<Form>,
         env: Env,
+        is_macro: bool,
     },
     Atom(Atom),
 }

@@ -31,6 +31,9 @@ pub fn populate(env: &mut Env) {
             ("cons", Form::native_fn(&cons)),
             ("concat", Form::native_fn(&concat)),
             ("vec", Form::native_fn(&vec_)),
+            ("nth", Form::native_fn(&nth)),
+            ("first", Form::native_fn(&first)),
+            ("rest", Form::native_fn(&rest)),
         ]
         .into_iter()
         .map(|(symbol, func)| (symbol.to_string(), func)),
@@ -206,4 +209,39 @@ fn concat(params: Form) -> Result<Form> {
 fn vec_(params: Form) -> Result<Form> {
     let (arg,): (Vec<Form>,) = params.try_into()?;
     Ok(Form::vector(arg))
+}
+
+fn nth(params: Form) -> Result<Form> {
+    let (list, index): (Vec<Form>, i64) = params.try_into()?;
+    let index: usize = index.try_into()?;
+    list.get(index)
+        .cloned()
+        .ok_or(crate::Error::IndexOutOfRange(index))
+}
+
+fn first(params: Form) -> Result<Form> {
+    let (list,): (Form,) = params.try_into()?;
+    if list.is_nil() || list.is_empty_collection() {
+        Ok(Form::nil())
+    } else if list.is_collection() {
+        let (first, _): (Form, Rest) = list.try_into()?;
+        Ok(first)
+    } else {
+        Err(crate::Error::InvalidArgument)
+    }
+}
+
+fn rest(params: Form) -> Result<Form> {
+    let (list,): (Form,) = params.try_into()?;
+    if list.is_nil() || list.is_empty_collection() {
+        Ok(Form::empty_list())
+    } else if let Ok((_, rest)) = <Form as TryInto<(Form, Rest)>>::try_into(list) {
+        Ok(rest.into())
+    } else {
+        Err(crate::Error::InvalidArgument)
+    }
+}
+
+fn _template(_params: Form) -> Result<Form> {
+    todo!()
 }

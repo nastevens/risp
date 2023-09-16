@@ -7,6 +7,16 @@ fn def(form: Form, env: &mut Env) -> Result<Form> {
     Ok(evaluated)
 }
 
+// fn defmacro(form: Form, env: &mut Env) -> Result<Form> {
+//     let (_, symbol, maybe_macro): ((), Ident, Form) = form.try_into()?;
+//     let evaluated = eval(maybe_macro, env)?;
+//     match evaluated.kind {
+//         FormKind::UserFn { binds, bind_rest, body, env, is_macro }
+//     }
+//     env.set(&symbol.name, evaluated.clone());
+//     Ok(evaluated)
+// }
+
 fn let_(form: Form, env: &Env) -> Result<(Form, Env)> {
     let (_, bindings, to_evaluate): ((), Vec<Form>, Form) = form.try_into()?;
     let mut iter = bindings.into_iter().fuse();
@@ -66,7 +76,7 @@ fn quote(form: Form) -> Result<Form> {
 }
 
 fn quasiquote_(form: Form) -> Result<Form> {
-    if form.as_fn_call() == Some("unquote") {
+    if form.as_fn_name() == Some("unquote") {
         let (_, arg): (Form, Form) = form.try_into()?;
         Ok(arg)
     } else if form.is_empty_list() {
@@ -74,11 +84,12 @@ fn quasiquote_(form: Form) -> Result<Form> {
         // `(quasiquoteexpand [])`, which expects to get back `(vec ())`, not `[]`
         Ok(form)
     } else if form.is_collection() {
-        let result = form.clone()
+        let result = form
+            .clone()
             .try_into_iter()
             .expect("previously confirmed as list")
             .rfold(Ok(Form::list([])), |accum: Result<Form>, elem| {
-                if elem.as_fn_call() == Some("splice-unquote") {
+                if elem.as_fn_name() == Some("splice-unquote") {
                     let (_, arg): (Form, Form) = elem.try_into()?;
                     Ok(Form::list([Form::symbol("concat"), arg, accum?]))
                 } else {
@@ -90,10 +101,7 @@ fn quasiquote_(form: Form) -> Result<Form> {
                 }
             })?;
         if form.is_vector() {
-            Ok(Form::list([
-                Form::symbol("vec"),
-                result,
-            ]))
+            Ok(Form::list([Form::symbol("vec"), result]))
         } else {
             Ok(result)
         }
@@ -127,6 +135,24 @@ fn extract_fn(form: Form) -> Result<(Form, Form)> {
     }
 }
 
+fn as_macro_call(form: &Form, env: &Env) -> Option<Form> {
+    let list = match form.kind {
+        FormKind::List(ref list) => list,
+        _ => return None,
+    };
+    let name = list.first()?.as_fn_name()?;
+    env.get(name).ok().filter(Form::is_macro)
+}
+
+fn macro_expand(mut form: Form, env: &Env) -> Result<Form> {
+    while let Some(macro_) = as_macro_call(&form, env) {
+        let params = Form::list(form.try_into_iter()?.skip(1));
+        let (new_form, _) = apply_user_fn(macro_, params)?;
+        form = new_form;
+    }
+    Ok(form)
+}
+
 fn apply_native_fn(f: Form, params: Form) -> Result<Form> {
     assert!(params.is_list());
     if let FormKind::NativeFn(f) = f.kind {
@@ -145,6 +171,7 @@ fn apply_user_fn(f: Form, params: Form) -> Result<(Form, Env)> {
             bind_rest,
             body,
             env: closure_env,
+            is_macro: _,
         } => {
             let mut env = Env::new_with(&closure_env);
             let mut param_iter = params.try_into_iter()?.fuse();
@@ -171,15 +198,15 @@ fn apply_user_fn(f: Form, params: Form) -> Result<(Form, Env)> {
 }
 
 impl Form {
-    // fn as_symbol_name(&self) -> Option<&str> {
-    //     if let FormKind::Symbol(Ident { ref name } ) = self.kind {
-    //         Some(name)
-    //     } else {
-    //         None
-    //     }
-    // }
+    pub fn as_symbol_name(&self) -> Option<&str> {
+        if let FormKind::Symbol(Ident { ref name }) = self.kind {
+            Some(name)
+        } else {
+            None
+        }
+    }
 
-    fn as_fn_call(&self) -> Option<&str> {
+    pub fn as_fn_name(&self) -> Option<&str> {
         if let FormKind::List(ref inner) = self.kind {
             inner.first().and_then(|first| match first.kind {
                 FormKind::Symbol(ref ident) => Some(&*ident.name),
@@ -190,13 +217,13 @@ impl Form {
         }
     }
 
-    // fn as_slice(&self) -> Option<&[Form]> {
-    //     if let FormKind::List(ref inner) | FormKind::Vector(ref inner) = self.kind {
-    //         Some(inner)
-    //     } else {
-    //         None
-    //     }
-    // }
+    pub fn as_slice(&self) -> Option<&[Form]> {
+        if let FormKind::List(ref inner) | FormKind::Vector(ref inner) = self.kind {
+            Some(inner)
+        } else {
+            None
+        }
+    }
 
     pub fn call(self, params: Form) -> Result<Form> {
         if self.is_native_fn() {
@@ -206,6 +233,10 @@ impl Form {
         } else {
             Err(Error::NotCallable)
         }
+    }
+
+    pub fn is_macro(&self) -> bool {
+        matches!(self.kind, FormKind::UserFn { is_macro: true, .. })
     }
 }
 
@@ -260,14 +291,16 @@ pub fn eval(mut form: Form, outer_env: &mut Env) -> Result<Form> {
         } else {
             &mut *outer_env
         };
+        form = macro_expand(form, env)?;
         if !form.is_list() {
             return eval_ast(form, env);
         }
         if form.is_empty_list() {
             return Ok(form);
         }
-        match form.as_fn_call() {
+        match form.as_fn_name() {
             Some("def!") => return def(form, env),
+            Some("defmacro!") => return def(form, env),
             Some("let*") => {
                 let new_env;
                 (form, new_env) = let_(form, env)?;
@@ -280,6 +313,10 @@ pub fn eval(mut form: Form, outer_env: &mut Env) -> Result<Form> {
             Some("quote") => return quote(form),
             Some("quasiquote") => form = quasiquote(form)?,
             Some("quasiquoteexpand") => return quasiquoteexpand(form),
+            Some("macroexpand") => {
+                let (_, arg): (Form, Form) = form.try_into()?;
+                return macro_expand(arg, env);
+            }
             _ => {
                 let (f, params) = extract_fn(eval_ast(form, env)?)?;
                 if f.is_user_fn() {
