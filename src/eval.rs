@@ -60,6 +60,60 @@ fn do_(form: Form, env: &mut Env) -> Result<Form> {
     Ok(last)
 }
 
+fn quote(form: Form) -> Result<Form> {
+    let (_, quoted): (Form, Form) = form.try_into()?;
+    Ok(quoted)
+}
+
+fn quasiquote_(form: Form) -> Result<Form> {
+    if form.as_fn_call() == Some("unquote") {
+        let (_, arg): (Form, Form) = form.try_into()?;
+        Ok(arg)
+    } else if form.is_empty_list() {
+        // Note that this arm should not use `is_empty_collection` - it breaks the tests for
+        // `(quasiquoteexpand [])`, which expects to get back `(vec ())`, not `[]`
+        Ok(form)
+    } else if form.is_collection() {
+        let result = form.clone()
+            .try_into_iter()
+            .expect("previously confirmed as list")
+            .rfold(Ok(Form::list([])), |accum: Result<Form>, elem| {
+                if elem.as_fn_call() == Some("splice-unquote") {
+                    let (_, arg): (Form, Form) = elem.try_into()?;
+                    Ok(Form::list([Form::symbol("concat"), arg, accum?]))
+                } else {
+                    Ok(Form::list([
+                        Form::symbol("cons"),
+                        quasiquote_(elem)?,
+                        accum?,
+                    ]))
+                }
+            })?;
+        if form.is_vector() {
+            Ok(Form::list([
+                Form::symbol("vec"),
+                result,
+            ]))
+        } else {
+            Ok(result)
+        }
+    } else if form.is_symbol() || form.is_hash_map() {
+        Ok(Form::list([Form::symbol("quote"), form]))
+    } else {
+        Ok(form)
+    }
+}
+
+fn quasiquoteexpand(form: Form) -> Result<Form> {
+    let (_, arg): (Form, Form) = form.try_into()?;
+    quasiquote_(arg)
+}
+
+fn quasiquote(form: Form) -> Result<Form> {
+    let (_, arg): (Form, Form) = form.try_into()?;
+    quasiquote_(arg)
+}
+
 fn extract_fn(form: Form) -> Result<(Form, Form)> {
     match form.kind {
         FormKind::List(mut list) => {
@@ -117,7 +171,15 @@ fn apply_user_fn(f: Form, params: Form) -> Result<(Form, Env)> {
 }
 
 impl Form {
-    fn calling(&self) -> Option<&str> {
+    // fn as_symbol_name(&self) -> Option<&str> {
+    //     if let FormKind::Symbol(Ident { ref name } ) = self.kind {
+    //         Some(name)
+    //     } else {
+    //         None
+    //     }
+    // }
+
+    fn as_fn_call(&self) -> Option<&str> {
         if let FormKind::List(ref inner) = self.kind {
             inner.first().and_then(|first| match first.kind {
                 FormKind::Symbol(ref ident) => Some(&*ident.name),
@@ -128,13 +190,19 @@ impl Form {
         }
     }
 
+    // fn as_slice(&self) -> Option<&[Form]> {
+    //     if let FormKind::List(ref inner) | FormKind::Vector(ref inner) = self.kind {
+    //         Some(inner)
+    //     } else {
+    //         None
+    //     }
+    // }
+
     pub fn call(self, params: Form) -> Result<Form> {
         if self.is_native_fn() {
             apply_native_fn(self, params)
         } else if self.is_user_fn() {
-            apply_user_fn(self, params).and_then(|(form, mut env)| {
-                eval(form, &mut env)
-            })
+            apply_user_fn(self, params).and_then(|(form, mut env)| eval(form, &mut env))
         } else {
             Err(Error::NotCallable)
         }
@@ -198,7 +266,7 @@ pub fn eval(mut form: Form, outer_env: &mut Env) -> Result<Form> {
         if form.is_empty_list() {
             return Ok(form);
         }
-        match form.calling() {
+        match form.as_fn_call() {
             Some("def!") => return def(form, env),
             Some("let*") => {
                 let new_env;
@@ -209,6 +277,9 @@ pub fn eval(mut form: Form, outer_env: &mut Env) -> Result<Form> {
             Some("if") => form = if_(form, env)?,
             Some("fn*") => return fn_(form, env),
             Some("eval") => return eval_(form, env),
+            Some("quote") => return quote(form),
+            Some("quasiquote") => form = quasiquote(form)?,
+            Some("quasiquoteexpand") => return quasiquoteexpand(form),
             _ => {
                 let (f, params) = extract_fn(eval_ast(form, env)?)?;
                 if f.is_user_fn() {

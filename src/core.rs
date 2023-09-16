@@ -30,6 +30,7 @@ pub fn populate(env: &mut Env) {
             ("swap!", Form::native_fn(&swap)),
             ("cons", Form::native_fn(&cons)),
             ("concat", Form::native_fn(&concat)),
+            ("vec", Form::native_fn(&vec_)),
         ]
         .into_iter()
         .map(|(symbol, func)| (symbol.to_string(), func)),
@@ -200,4 +201,9 @@ fn cons(params: Form) -> Result<Form> {
 fn concat(params: Form) -> Result<Form> {
     let lists: Vec<Vec<Form>> = params.try_into()?;
     Ok(Form::list(lists.into_iter().flatten()))
+}
+
+fn vec_(params: Form) -> Result<Form> {
+    let (arg,): (Vec<Form>,) = params.try_into()?;
+    Ok(Form::vector(arg))
 }

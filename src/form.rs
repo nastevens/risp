@@ -40,10 +40,6 @@ impl From<Atom> for Form {
     }
 }
 
-pub trait Callable {
-    fn call(params: Form) -> Result<Form>;
-}
-
 #[derive(Clone, PartialEq)]
 pub struct Form {
     pub kind: FormKind,
@@ -174,11 +170,29 @@ impl Form {
         }
     }
 
-    pub fn try_into_iter(self) -> Result<impl Iterator<Item = Form>> {
+    pub fn try_into_iter(self) -> Result<impl Iterator<Item = Form> + DoubleEndedIterator> {
         match self.kind {
             FormKind::List(inner) => Ok(inner.into_iter()),
             FormKind::Vector(inner) => Ok(inner.into_iter()),
             _ => Err(Error::NotIterable),
+        }
+    }
+
+    pub fn is_symbol_named(&self, test: &str) -> bool {
+        matches!(&self.kind, FormKind::Symbol(Ident { name }) if name == test)
+    }
+
+    pub fn is_collection(&self) -> bool {
+        matches!(&self.kind, FormKind::List(_) | FormKind::Vector(_))
+    }
+
+    pub fn is_empty_collection(&self) -> bool {
+        matches!(&self.kind, FormKind::List(inner) | FormKind::Vector(inner) if inner.is_empty())
+    }
+
+    pub fn empty_list() -> Form {
+        Form {
+            kind: FormKind::List(vec![]),
         }
     }
 }
