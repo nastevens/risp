@@ -63,8 +63,10 @@ impl std::fmt::Debug for FormKind {
             FormKind::List(val) => ListWriter::new(val, "(", ")").write(std::fmt::Debug::fmt, f),
             FormKind::Vector(val) => ListWriter::new(val, "[", "]").write(std::fmt::Debug::fmt, f),
             FormKind::HashMap(val) => ListWriter::new(val, "{", "}").write(std::fmt::Debug::fmt, f),
-            FormKind::NativeFn(_) => write!(f, "#<function>"),
-            FormKind::UserFn { .. } => write!(f, "#<function>"),
+            FormKind::NativeFn(_) => write!(f, "#<native>"),
+            FormKind::UserFn { is_macro, .. } => {
+                write!(f, "{}", if *is_macro { "#<macro>" } else { "#<function>" })
+            }
             FormKind::Atom(atom) => write!(f, "(atom {:?})", *atom.value.borrow()),
         }
     }

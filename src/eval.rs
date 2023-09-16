@@ -7,15 +7,22 @@ fn def(form: Form, env: &mut Env) -> Result<Form> {
     Ok(evaluated)
 }
 
-// fn defmacro(form: Form, env: &mut Env) -> Result<Form> {
-//     let (_, symbol, maybe_macro): ((), Ident, Form) = form.try_into()?;
-//     let evaluated = eval(maybe_macro, env)?;
-//     match evaluated.kind {
-//         FormKind::UserFn { binds, bind_rest, body, env, is_macro }
-//     }
-//     env.set(&symbol.name, evaluated.clone());
-//     Ok(evaluated)
-// }
+fn defmacro(form: Form, env: &mut Env) -> Result<Form> {
+    let (_, symbol, maybe_macro): ((), Ident, Form) = form.try_into()?;
+    let evaluated = eval(maybe_macro, env)?;
+    let as_macro = match evaluated.kind {
+        FormKind::UserFn {
+            binds,
+            bind_rest,
+            body,
+            env,
+            is_macro: _,
+        } => Form::macro_(binds, bind_rest, *body, env),
+        _ => return Err(Error::InvalidArgument),
+    };
+    env.set(&symbol.name, as_macro.clone());
+    Ok(as_macro)
+}
 
 fn let_(form: Form, env: &Env) -> Result<(Form, Env)> {
     let (_, bindings, to_evaluate): ((), Vec<Form>, Form) = form.try_into()?;
@@ -136,19 +143,14 @@ fn extract_fn(form: Form) -> Result<(Form, Form)> {
 }
 
 fn as_macro_call(form: &Form, env: &Env) -> Option<Form> {
-    let list = match form.kind {
-        FormKind::List(ref list) => list,
-        _ => return None,
-    };
-    let name = list.first()?.as_fn_name()?;
+    let name = form.as_fn_name()?;
     env.get(name).ok().filter(Form::is_macro)
 }
 
 fn macro_expand(mut form: Form, env: &Env) -> Result<Form> {
     while let Some(macro_) = as_macro_call(&form, env) {
         let params = Form::list(form.try_into_iter()?.skip(1));
-        let (new_form, _) = apply_user_fn(macro_, params)?;
-        form = new_form;
+        form = macro_.call(params)?;
     }
     Ok(form)
 }
@@ -285,22 +287,29 @@ pub fn eval_ast(form: Form, env: &mut Env) -> Result<Form> {
 pub fn eval(mut form: Form, outer_env: &mut Env) -> Result<Form> {
     let mut tco_env: Option<Env> = None;
     loop {
-        tracing::trace!(?form);
+        dbg!(&form);
         let env = if let Some(ref mut inner_env) = tco_env {
             inner_env
         } else {
             &mut *outer_env
         };
-        form = macro_expand(form, env)?;
+
         if !form.is_list() {
             return eval_ast(form, env);
         }
-        if form.is_empty_list() {
+
+        form = macro_expand(form, env)?;
+
+        if !form.is_list() {
+            return eval_ast(form, env);
+        }
+        if form.is_empty_collection() {
             return Ok(form);
         }
+
         match form.as_fn_name() {
             Some("def!") => return def(form, env),
-            Some("defmacro!") => return def(form, env),
+            Some("defmacro!") => return defmacro(form, env),
             Some("let*") => {
                 let new_env;
                 (form, new_env) = let_(form, env)?;
@@ -315,7 +324,7 @@ pub fn eval(mut form: Form, outer_env: &mut Env) -> Result<Form> {
             Some("quasiquoteexpand") => return quasiquoteexpand(form),
             Some("macroexpand") => {
                 let (_, arg): (Form, Form) = form.try_into()?;
-                return macro_expand(arg, env);
+                return Ok(macro_expand(arg, env)?);
             }
             _ => {
                 let (f, params) = extract_fn(eval_ast(form, env)?)?;

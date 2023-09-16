@@ -162,7 +162,7 @@ impl Form {
                 bind_rest,
                 body: Box::new(body),
                 env,
-                is_macro: false,
+                is_macro: true,
             },
         }
     }
