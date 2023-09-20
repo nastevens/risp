@@ -90,7 +90,7 @@ fn quasiquote_(form: Form) -> Result<Form> {
         // Note that this arm should not use `is_empty_collection` - it breaks the tests for
         // `(quasiquoteexpand [])`, which expects to get back `(vec ())`, not `[]`
         Ok(form)
-    } else if form.is_collection() {
+    } else if form.is_sequential() {
         let result = form
             .clone()
             .try_into_iter()
@@ -303,7 +303,7 @@ pub fn eval(mut form: Form, outer_env: &mut Env) -> Result<Form> {
         if !form.is_list() {
             return eval_ast(form, env);
         }
-        if form.is_empty_collection() {
+        if form.is_empty_sequential() {
             return Ok(form);
         }
 

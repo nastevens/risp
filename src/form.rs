@@ -195,11 +195,11 @@ impl Form {
         matches!(&self.kind, FormKind::Symbol(Ident { name }) if name == test)
     }
 
-    pub fn is_collection(&self) -> bool {
+    pub fn is_sequential(&self) -> bool {
         matches!(&self.kind, FormKind::List(_) | FormKind::Vector(_))
     }
 
-    pub fn is_empty_collection(&self) -> bool {
+    pub fn is_empty_sequential(&self) -> bool {
         matches!(&self.kind, FormKind::List(inner) | FormKind::Vector(inner) if inner.is_empty())
     }
 

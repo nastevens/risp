@@ -1,4 +1,4 @@
-use crate::{convert::Rest, form::Atom, Env, Form, Result};
+use crate::{convert::Rest, form::Atom, Env, Form, Result, FormKind};
 use std::fmt::Write;
 
 pub fn populate(env: &mut Env) {
@@ -34,6 +34,16 @@ pub fn populate(env: &mut Env) {
             ("nth", Form::native_fn(&nth)),
             ("first", Form::native_fn(&first)),
             ("rest", Form::native_fn(&rest)),
+            ("apply", Form::native_fn(&apply)),
+            ("map", Form::native_fn(&map)),
+            ("nil?", Form::native_fn(&is_nil)),
+            ("true?", Form::native_fn(&is_true)),
+            ("false?", Form::native_fn(&is_false)),
+            ("symbol", Form::native_fn(&symbol)),
+            ("symbol?", Form::native_fn(&is_symbol)),
+            ("vector", Form::native_fn(&vector)),
+            ("vector?", Form::native_fn(&is_vector)),
+            ("sequential?", Form::native_fn(&is_sequential)),
         ]
         .into_iter()
         .map(|(symbol, func)| (symbol.to_string(), func)),
@@ -225,9 +235,9 @@ fn nth(params: Form) -> Result<Form> {
 
 fn first(params: Form) -> Result<Form> {
     let (list,): (Form,) = params.try_into()?;
-    if list.is_nil() || list.is_empty_collection() {
+    if list.is_nil() || list.is_empty_sequential() {
         Ok(Form::nil())
-    } else if list.is_collection() {
+    } else if list.is_sequential() {
         let (first, _): (Form, Rest) = list.try_into()?;
         Ok(first)
     } else {
@@ -237,13 +247,74 @@ fn first(params: Form) -> Result<Form> {
 
 fn rest(params: Form) -> Result<Form> {
     let (list,): (Form,) = params.try_into()?;
-    if list.is_nil() || list.is_empty_collection() {
+    if list.is_nil() || list.is_empty_sequential() {
         Ok(Form::empty_list())
     } else if let Ok((_, rest)) = <Form as TryInto<(Form, Rest)>>::try_into(list) {
         Ok(rest.into())
     } else {
         Err(crate::Error::InvalidArgument)
     }
+}
+
+fn apply(params: Form) -> Result<Form> {
+    let (f, mut rest): (Form, Rest) = params.try_into()?;
+    let last = rest.values.pop();
+    let mut args = rest.values.drain(..rest.values.len()).collect::<Vec<_>>();
+    if let Some(list_args) = last {
+        args.extend(list_args.try_into_iter()?);
+        f.call(Form::list(args))
+    } else {
+        Err(crate::Error::InvalidArgument)
+    }
+}
+
+fn map(params: Form) -> Result<Form> {
+    let (f, list): (Form, Vec<Form>) = params.try_into()?;
+    let mapped = list
+        .into_iter()
+        .map(|arg| f.clone().call(Form::list([arg])))
+        .collect::<Result<Vec<Form>>>()?;
+    Ok(Form::list(mapped))
+}
+
+fn is_nil(params: Form) -> Result<Form> {
+    let (arg,): (Form,) = params.try_into()?;
+    Ok(Form::boolean(arg.is_nil()))
+}
+
+fn is_true(params: Form) -> Result<Form> {
+    let (arg,): (Form,) = params.try_into()?;
+    Ok(Form::boolean(matches!(arg.kind, FormKind::Boolean(true))))
+}
+
+fn is_false(params: Form) -> Result<Form> {
+    let (arg,): (Form,) = params.try_into()?;
+    Ok(Form::boolean(matches!(arg.kind, FormKind::Boolean(false))))
+}
+
+fn is_symbol(params: Form) -> Result<Form> {
+    let (arg,): (Form,) = params.try_into()?;
+    Ok(Form::boolean(arg.is_symbol()))
+}
+
+fn symbol(params: Form) -> Result<Form> {
+    let (arg,): (String,) = params.try_into()?;
+    Ok(Form::symbol(&arg))
+}
+
+fn vector(params: Form) -> Result<Form> {
+    let args: Vec<Form> = params.try_into()?;
+    Ok(Form::vector(args))
+}
+
+fn is_vector(params: Form) -> Result<Form> {
+    let (arg,): (Form,) = params.try_into()?;
+    Ok(Form::boolean(arg.is_vector()))
+}
+
+fn is_sequential(params: Form) -> Result<Form> {
+    let (arg,): (Form,) = params.try_into()?;
+    Ok(Form::boolean(arg.is_sequential()))
 }
 
 fn _template(_params: Form) -> Result<Form> {
