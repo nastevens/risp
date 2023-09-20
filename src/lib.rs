@@ -25,7 +25,7 @@ pub enum Error {
     Eof,
     #[error("unbalanced list")]
     UnbalancedList,
-    #[error("{0} not found")]
+    #[error("'{0}' not found")]
     UnknownSymbol(String),
     #[error("invalid number {0}")]
     InvalidNumber(String),
@@ -45,6 +45,8 @@ pub enum Error {
     NotCallable,
     #[error("index {0} out of range")]
     IndexOutOfRange(usize),
+    #[error("{0}")]
+    UserError(Form),
 }
 
 impl From<Infallible> for Error {

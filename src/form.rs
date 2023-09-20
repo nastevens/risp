@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, hash::{Hash, Hasher}, rc::Rc};
 
 use crate::{Env, Error, Result};
 

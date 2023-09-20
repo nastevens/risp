@@ -248,6 +248,21 @@ fn eval_(form: Form, env: &mut Env) -> Result<Form> {
     eval(evaluated, &mut env.root())
 }
 
+fn try_(form: Form, env: &mut Env) -> Result<Form> {
+    let (_try, to_eval, (_catch, bind, err_eval)): (Ident, Form, (Ident, Ident, Form)) = form.try_into()?;
+    assert_eq!(_try.name, "try*");
+    assert_eq!(_catch.name, "catch*");
+    eval(dbg!(to_eval), env).or_else(|err| {
+        let err_arg = match err {
+            Error::UserError(form) => form,
+            other => Form::string(format!("{}", other)),
+        };
+        let mut new_env = Env::new_with(env);
+        new_env.set(bind.name, err_arg);
+        eval(err_eval, &mut new_env)
+    })
+}
+
 pub fn eval_ast(form: Form, env: &mut Env) -> Result<Form> {
     match form {
         Form {
@@ -287,7 +302,7 @@ pub fn eval_ast(form: Form, env: &mut Env) -> Result<Form> {
 pub fn eval(mut form: Form, outer_env: &mut Env) -> Result<Form> {
     let mut tco_env: Option<Env> = None;
     loop {
-        dbg!(&form);
+        // dbg!(&form);
         let env = if let Some(ref mut inner_env) = tco_env {
             inner_env
         } else {
@@ -326,6 +341,7 @@ pub fn eval(mut form: Form, outer_env: &mut Env) -> Result<Form> {
                 let (_, arg): (Form, Form) = form.try_into()?;
                 return Ok(macro_expand(arg, env)?);
             }
+            Some("try*") => form = try_(form, env)?,
             _ => {
                 let (f, params) = extract_fn(eval_ast(form, env)?)?;
                 if f.is_user_fn() {

@@ -44,6 +44,7 @@ pub fn populate(env: &mut Env) {
             ("vector", Form::native_fn(&vector)),
             ("vector?", Form::native_fn(&is_vector)),
             ("sequential?", Form::native_fn(&is_sequential)),
+            ("throw", Form::native_fn(&throw)),
         ]
         .into_iter()
         .map(|(symbol, func)| (symbol.to_string(), func)),
@@ -315,6 +316,11 @@ fn is_vector(params: Form) -> Result<Form> {
 fn is_sequential(params: Form) -> Result<Form> {
     let (arg,): (Form,) = params.try_into()?;
     Ok(Form::boolean(arg.is_sequential()))
+}
+
+fn throw(params: Form) -> Result<Form> {
+    let (arg, ): (Form, ) = params.try_into()?;
+    Err(crate::Error::UserError(arg))
 }
 
 fn _template(_params: Form) -> Result<Form> {

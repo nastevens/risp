@@ -59,7 +59,7 @@ impl std::fmt::Debug for FormKind {
             FormKind::Integer(n) => write!(f, "{n}"),
             FormKind::Float(n) => write!(f, "{n}"),
             FormKind::String(s) => write!(f, "\"{}\"", escape_unprintable(s)),
-            FormKind::Keyword(k) => write!(f, "{k}"),
+            FormKind::Keyword(k) => write!(f, ":{k}"),
             FormKind::List(val) => ListWriter::new(val, "(", ")").write(std::fmt::Debug::fmt, f),
             FormKind::Vector(val) => ListWriter::new(val, "[", "]").write(std::fmt::Debug::fmt, f),
             FormKind::HashMap(val) => ListWriter::new(val, "{", "}").write(std::fmt::Debug::fmt, f),

@@ -127,8 +127,9 @@ fn read_keyword<'a>(
     token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
 ) -> Option<Result<Form, Error>> {
     token_iter.next().map(|name| {
+        let no_colon = name.chars().skip(1).collect::<String>();
         Ok(Form {
-            kind: FormKind::Keyword(name.to_string()),
+            kind: FormKind::Keyword(no_colon),
         })
     })
 }
