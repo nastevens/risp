@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{form::Ident, Env, Error, Form, FormKind, Result};
 
 fn def(form: Form, env: &mut Env) -> Result<Form> {
@@ -249,10 +251,18 @@ fn eval_(form: Form, env: &mut Env) -> Result<Form> {
 }
 
 fn try_(form: Form, env: &mut Env) -> Result<Form> {
-    let (_try, to_eval, (_catch, bind, err_eval)): (Ident, Form, (Ident, Ident, Form)) = form.try_into()?;
+    if let Ok((_, to_eval)) = <Form as TryInto<(Form, Form)>>::try_into(form.clone()) {
+        return eval(to_eval, env).or_else(|err| match err {
+            Error::UserError(form) => Ok(form),
+            other => Ok(Form::string(format!("{}", other))),
+        });
+    }
+
+    let (_try, to_eval, (_catch, bind, err_eval)): (Ident, Form, (Ident, Ident, Form)) =
+        form.try_into()?;
     assert_eq!(_try.name, "try*");
     assert_eq!(_catch.name, "catch*");
-    eval(dbg!(to_eval), env).or_else(|err| {
+    eval(to_eval, env).or_else(|err| {
         let err_arg = match err {
             Error::UserError(form) => form,
             other => Form::string(format!("{}", other)),
@@ -291,8 +301,8 @@ pub fn eval_ast(form: Form, env: &mut Env) -> Result<Form> {
         } => {
             let evaluated = inner
                 .into_iter()
-                .map(|form| eval(form, env))
-                .collect::<Result<Vec<Form>>>()?;
+                .map(|(k, v)| Ok((eval(k, env)?, eval(v, env)?)))
+                .collect::<Result<HashMap<Form, Form>>>()?;
             Ok(Form::hash_map(evaluated))
         }
         other => Ok(other),

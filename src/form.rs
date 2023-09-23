@@ -1,4 +1,9 @@
-use std::{cell::RefCell, hash::{Hash, Hasher}, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    hash::{Hash, Hasher},
+    rc::Rc,
+};
 
 use crate::{Env, Error, Result};
 
@@ -40,7 +45,7 @@ impl From<Atom> for Form {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Hash, Eq, PartialEq)]
 pub struct Form {
     pub kind: FormKind,
 }
@@ -125,9 +130,9 @@ impl Form {
         }
     }
 
-    pub fn hash_map(value: impl IntoIterator<Item = Form>) -> Form {
+    pub fn hash_map(value: HashMap<Form, Form>) -> Form {
         Form {
-            kind: FormKind::HashMap(value.into_iter().collect()),
+            kind: FormKind::HashMap(value),
         }
     }
 
@@ -221,7 +226,7 @@ pub enum FormKind {
     Keyword(String),
     List(Vec<Form>),
     Vector(Vec<Form>),
-    HashMap(Vec<Form>),
+    HashMap(HashMap<Form, Form>),
     NativeFn(&'static dyn Fn(Form) -> Result<Form>),
     UserFn {
         binds: Vec<Ident>,
@@ -233,7 +238,28 @@ pub enum FormKind {
     Atom(Atom),
 }
 
-impl PartialEq<FormKind> for FormKind {
+// impl FormKind {
+//     fn mal_eq(&self, other: &FormKind) -> bool {
+//         match (self, other) {
+//             (FormKind::Nil, FormKind::Nil) => true,
+//             (FormKind::Boolean(a), FormKind::Boolean(b)) => *a == *b,
+//             (FormKind::Symbol(a), FormKind::Symbol(b)) => *a == *b,
+//             (FormKind::Integer(a), FormKind::Integer(b)) => *a == *b,
+//             (FormKind::Float(a), FormKind::Float(b)) => *a == *b,
+//             (FormKind::String(a), FormKind::String(b)) => *a == *b,
+//             (FormKind::Keyword(a), FormKind::Keyword(b)) => *a == *b,
+//             (FormKind::List(a) | FormKind::Vector(a), FormKind::List(b) | FormKind::Vector(b)) => {
+//                 *a == *b
+//             }
+//             (FormKind::HashMap(a), FormKind::HashMap(b)) => *a == *b,
+//             (FormKind::NativeFn(_), _) => false,
+//             (FormKind::UserFn { .. }, _) => false,
+//             (_, _) => false,
+//         }
+//     }
+// }
+
+impl PartialEq for FormKind {
     fn eq(&self, other: &FormKind) -> bool {
         match (self, other) {
             (FormKind::Nil, FormKind::Nil) => true,
@@ -250,6 +276,79 @@ impl PartialEq<FormKind> for FormKind {
             (FormKind::NativeFn(_), _) => false,
             (FormKind::UserFn { .. }, _) => false,
             (_, _) => false,
+        }
+    }
+}
+
+impl Eq for FormKind {}
+
+impl Hash for FormKind {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u8(0x00);
+        match self {
+            FormKind::Nil => {
+                state.write_u8(0x00);
+                Hash::hash(&(), state);
+            }
+            FormKind::Boolean(x) => {
+                state.write_u8(0x01);
+                Hash::hash(x, state);
+            }
+            FormKind::Symbol(Ident { name }) => {
+                state.write_u8(0x02);
+                Hash::hash(name, state);
+            }
+            FormKind::Integer(x) => {
+                state.write_u8(0x03);
+                Hash::hash(x, state);
+            }
+            FormKind::Float(x) => {
+                state.write_u8(0x04);
+                Hash::hash(&x.to_bits(), state);
+            }
+            FormKind::String(x) => {
+                state.write_u8(0x05);
+                Hash::hash(x, state);
+            }
+            FormKind::Keyword(x) => {
+                state.write_u8(0x06);
+                Hash::hash(x, state);
+            }
+            FormKind::List(x) => {
+                state.write_u8(0x07);
+                x.iter().for_each(|v| {
+                    state.write_u8(0x00);
+                    Hash::hash(v, state);
+                });
+            }
+            FormKind::Vector(x) => {
+                state.write_u8(0x08);
+                x.iter().for_each(|v| {
+                    state.write_u8(0x00);
+                    Hash::hash(v, state);
+                });
+            }
+            FormKind::HashMap(x) => {
+                state.write_u8(0x09);
+                x.iter().for_each(|(k, v)| {
+                    state.write_u8(0x00);
+                    Hash::hash(k, state);
+                    state.write_u8(0x01);
+                    Hash::hash(v, state);
+                });
+            }
+            FormKind::NativeFn(_) => {
+                state.write_u8(0x0A);
+                Hash::hash(&(), state);
+            }
+            FormKind::UserFn { .. } => {
+                state.write_u8(0x0B);
+                Hash::hash(&(), state);
+            }
+            FormKind::Atom(_) => {
+                state.write_u8(0x0C);
+                Hash::hash(&(), state);
+            }
         }
     }
 }

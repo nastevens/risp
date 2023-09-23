@@ -1,5 +1,7 @@
-use crate::{convert::Rest, form::Atom, Env, Form, Result, FormKind};
-use std::fmt::Write;
+use itertools::Itertools;
+
+use crate::{convert::Rest, form::Atom, Env, Form, FormKind, Result};
+use std::{collections::HashMap, fmt::Write};
 
 pub fn populate(env: &mut Env) {
     env.extend(
@@ -41,10 +43,20 @@ pub fn populate(env: &mut Env) {
             ("false?", Form::native_fn(&is_false)),
             ("symbol", Form::native_fn(&symbol)),
             ("symbol?", Form::native_fn(&is_symbol)),
+            ("keyword", Form::native_fn(&keyword)),
+            ("keyword?", Form::native_fn(&is_keyword)),
             ("vector", Form::native_fn(&vector)),
             ("vector?", Form::native_fn(&is_vector)),
             ("sequential?", Form::native_fn(&is_sequential)),
             ("throw", Form::native_fn(&throw)),
+            ("hash-map", Form::native_fn(&hash_map)),
+            ("map?", Form::native_fn(&is_map)),
+            ("assoc", Form::native_fn(&assoc)),
+            ("dissoc", Form::native_fn(&dissoc)),
+            ("get", Form::native_fn(&get)),
+            ("contains?", Form::native_fn(&contains)),
+            ("keys", Form::native_fn(&keys)),
+            ("vals", Form::native_fn(&vals)),
         ]
         .into_iter()
         .map(|(symbol, func)| (symbol.to_string(), func)),
@@ -303,6 +315,20 @@ fn symbol(params: Form) -> Result<Form> {
     Ok(Form::symbol(&arg))
 }
 
+fn keyword(params: Form) -> Result<Form> {
+    let (form,): (Form,) = params.try_into()?;
+    match form.kind {
+        FormKind::String(s) => Ok(Form::keyword(s)),
+        FormKind::Keyword(_) => Ok(form),
+        _ => Err(crate::Error::InvalidArgument),
+    }
+}
+
+fn is_keyword(params: Form) -> Result<Form> {
+    let (arg,): (Form,) = params.try_into()?;
+    Ok(Form::boolean(arg.is_keyword()))
+}
+
 fn vector(params: Form) -> Result<Form> {
     let args: Vec<Form> = params.try_into()?;
     Ok(Form::vector(args))
@@ -319,10 +345,64 @@ fn is_sequential(params: Form) -> Result<Form> {
 }
 
 fn throw(params: Form) -> Result<Form> {
-    let (arg, ): (Form, ) = params.try_into()?;
+    let (arg,): (Form,) = params.try_into()?;
     Err(crate::Error::UserError(arg))
 }
 
+fn hash_map(params: Form) -> Result<Form> {
+    let args: Vec<Form> = params.try_into()?;
+    if args.len() % 2 == 1 {
+        Err(crate::Error::InvalidArgument)
+    } else {
+        Ok(Form {
+            kind: FormKind::HashMap(args.into_iter().tuples().collect()),
+        })
+    }
+}
+
+fn is_map(params: Form) -> Result<Form> {
+    let (arg,): (Form,) = params.try_into()?;
+    Ok(Form::boolean(arg.is_hash_map()))
+}
+
+fn assoc(params: Form) -> Result<Form> {
+    let (mut map, rest): (HashMap<Form, Form>, Rest) = params.try_into()?;
+    if rest.values.len() % 2 == 0 {
+        map.extend(rest.values.into_iter().tuples());
+        Ok(Form::hash_map(map))
+    } else {
+        Err(crate::Error::InvalidArgument)
+    }
+}
+
+fn dissoc(params: Form) -> Result<Form> {
+    let (mut map, rest): (HashMap<Form, Form>, Rest) = params.try_into()?;
+    for key in rest.values {
+        map.remove(&key);
+    }
+    Ok(Form::hash_map(map))
+}
+
+fn get(params: Form) -> Result<Form> {
+    let (mut map, key): (HashMap<Form, Form>, Form) = params.try_into()?;
+    Ok(map.remove(&key).unwrap_or(Form::nil()))
+}
+
+fn contains(params: Form) -> Result<Form> {
+    let (map, key): (HashMap<Form, Form>, Form) = params.try_into()?;
+    Ok(Form::boolean(map.contains_key(&key)))
+}
+
+fn keys(params: Form) -> Result<Form> {
+    let (map,): (HashMap<Form, Form>,) = params.try_into()?;
+    Ok(Form::list(map.into_keys()))
+}
+
+fn vals(params: Form) -> Result<Form> {
+    let (map,): (HashMap<Form, Form>,) = params.try_into()?;
+    Ok(Form::list(map.into_values()))
+}
+
 fn _template(_params: Form) -> Result<Form> {
-    todo!()
+    Err(crate::Error::InvalidArgument)
 }

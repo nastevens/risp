@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use crate::{
     form::{Form, FormKind},
     Error,
@@ -23,14 +25,14 @@ impl ListInner {
         f: F,
     ) -> Option<Result<Form, Error>>
     where
-        F: FnOnce(Vec<Form>) -> Form,
+        F: FnOnce(Vec<Form>) -> Result<Form, Error>,
     {
         assert_eq!(token_iter.next(), Some(self.start_symbol));
         let mut values = Vec::new();
         loop {
             if token_iter.peek() == Some(&self.end_symbol) {
                 token_iter.next();
-                break Some(Ok(f(values)));
+                break Some(f(values));
             }
             match super::read_form(token_iter) {
                 Some(Ok(ast)) => values.push(ast),
@@ -44,23 +46,33 @@ impl ListInner {
 pub fn read_list<'a>(
     token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
 ) -> Option<Result<Form, Error>> {
-    ListInner::new("(", ")").read(token_iter, |values| Form {
-        kind: FormKind::List(values),
+    ListInner::new("(", ")").read(token_iter, |values| {
+        Ok(Form {
+            kind: FormKind::List(values),
+        })
     })
 }
 
 pub fn read_vector<'a>(
     token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
 ) -> Option<Result<Form, Error>> {
-    ListInner::new("[", "]").read(token_iter, |values| Form {
-        kind: FormKind::Vector(values),
+    ListInner::new("[", "]").read(token_iter, |values| {
+        Ok(Form {
+            kind: FormKind::Vector(values),
+        })
     })
 }
 
 pub fn read_hash_map<'a>(
     token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
 ) -> Option<Result<Form, Error>> {
-    ListInner::new("{", "}").read(token_iter, |values| Form {
-        kind: FormKind::HashMap(values),
+    ListInner::new("{", "}").read(token_iter, |values| {
+        if values.len() % 2 == 1 {
+            Err(Error::InvalidArgument)
+        } else {
+            Ok(Form {
+                kind: FormKind::HashMap(values.into_iter().tuples().collect()),
+            })
+        }
     })
 }

@@ -6,32 +6,26 @@ pub fn pr_str(input: &Form) -> String {
     format!("{:?}", input.kind)
 }
 
-struct ListWriter<'a> {
-    values: &'a [Form],
+fn write_list<'a, F>(
     start: &'static str,
     end: &'static str,
-}
-
-impl<'a> ListWriter<'a> {
-    pub fn new(values: &'a [Form], start: &'static str, end: &'static str) -> ListWriter<'a> {
-        ListWriter { values, start, end }
-    }
-
-    pub fn write<F>(&self, fmt: F, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
-    where
-        F: Fn(&Form, &mut std::fmt::Formatter) -> std::fmt::Result,
-    {
-        f.write_str(self.start)?;
-        let mut has_fields = false;
-        for form in self.values {
-            if has_fields {
-                f.write_str(" ")?;
-            }
-            fmt(form, f)?;
-            has_fields = true;
+    values: impl IntoIterator<Item = &'a Form>,
+    fmt: F,
+    f: &mut std::fmt::Formatter<'_>,
+) -> std::fmt::Result
+where
+    F: Fn(&Form, &mut std::fmt::Formatter) -> std::fmt::Result,
+{
+    f.write_str(start)?;
+    let mut has_fields = false;
+    for form in values {
+        if has_fields {
+            f.write_str(" ")?;
         }
-        f.write_str(self.end)
+        fmt(form, f)?;
+        has_fields = true;
     }
+    f.write_str(end)
 }
 
 fn escape_unprintable(s: &str) -> String {
@@ -60,9 +54,13 @@ impl std::fmt::Debug for FormKind {
             FormKind::Float(n) => write!(f, "{n}"),
             FormKind::String(s) => write!(f, "\"{}\"", escape_unprintable(s)),
             FormKind::Keyword(k) => write!(f, ":{k}"),
-            FormKind::List(val) => ListWriter::new(val, "(", ")").write(std::fmt::Debug::fmt, f),
-            FormKind::Vector(val) => ListWriter::new(val, "[", "]").write(std::fmt::Debug::fmt, f),
-            FormKind::HashMap(val) => ListWriter::new(val, "{", "}").write(std::fmt::Debug::fmt, f),
+            FormKind::List(val) => write_list("(", ")", val, std::fmt::Debug::fmt, f),
+            FormKind::Vector(val) => write_list("[", "]", val, std::fmt::Debug::fmt, f),
+            FormKind::HashMap(val) => {
+                use std::iter::once;
+                let flattened = val.iter().flat_map(|(k, v)| once(k).chain(once(v)));
+                write_list("{", "}", flattened, std::fmt::Debug::fmt, f)
+            }
             FormKind::NativeFn(_) => write!(f, "#<native>"),
             FormKind::UserFn { is_macro, .. } => {
                 write!(f, "{}", if *is_macro { "#<macro>" } else { "#<function>" })
@@ -82,12 +80,12 @@ impl std::fmt::Display for FormKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             FormKind::String(s) => write!(f, "{s}"),
-            FormKind::List(val) => ListWriter::new(val, "(", ")").write(std::fmt::Display::fmt, f),
-            FormKind::Vector(val) => {
-                ListWriter::new(val, "[", "]").write(std::fmt::Display::fmt, f)
-            }
+            FormKind::List(val) => write_list("(", ")", val, std::fmt::Display::fmt, f),
+            FormKind::Vector(val) => write_list("[", "]", val, std::fmt::Display::fmt, f),
             FormKind::HashMap(val) => {
-                ListWriter::new(val, "{", "}").write(std::fmt::Display::fmt, f)
+                use std::iter::once;
+                let flattened = val.iter().flat_map(|(k, v)| once(k).chain(once(v)));
+                write_list("{", "}", flattened, std::fmt::Display::fmt, f)
             }
             FormKind::Atom(Atom { value }) => write!(f, "{}", *value.borrow()),
             other => std::fmt::Debug::fmt(other, f),

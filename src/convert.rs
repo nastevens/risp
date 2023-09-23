@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{
     form::{Atom, Ident},
     Form, FormKind, Result,
@@ -35,6 +37,28 @@ where
             FormKind::List(inner) | FormKind::Vector(inner) => {
                 inner.into_iter().map(|x| Ok(x.try_into()?)).collect()
             }
+            _ => Err(crate::Error::InvalidArgument),
+        }
+    }
+}
+
+impl<T, U, E> TryInto<HashMap<T, U>> for Form
+where
+    Form: TryInto<T, Error = E>,
+    Form: TryInto<U, Error = E>,
+    crate::Error: From<E>,
+    T: std::hash::Hash + std::cmp::Eq,
+    U: std::hash::Hash + std::cmp::Eq,
+{
+    type Error = crate::Error;
+
+    fn try_into(self) -> Result<HashMap<T, U>> {
+        match self.kind {
+            FormKind::Nil => Ok(HashMap::new()),
+            FormKind::HashMap(map) => map
+                .into_iter()
+                .map(|(k, v)| Ok((k.try_into()?, v.try_into()?)))
+                .collect(),
             _ => Err(crate::Error::InvalidArgument),
         }
     }
