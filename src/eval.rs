@@ -167,7 +167,7 @@ fn apply_native_fn(f: Form, params: Form) -> Result<Form> {
 }
 
 fn apply_user_fn(f: Form, params: Form) -> Result<(Form, Env)> {
-    assert!(f.is_user_fn());
+    assert!(f.is_user_fn() || f.is_macro());
     assert!(params.is_list());
     match f.kind {
         FormKind::UserFn {
@@ -232,15 +232,11 @@ impl Form {
     pub fn call(self, params: Form) -> Result<Form> {
         if self.is_native_fn() {
             apply_native_fn(self, params)
-        } else if self.is_user_fn() {
+        } else if self.is_user_fn() || self.is_macro() {
             apply_user_fn(self, params).and_then(|(form, mut env)| eval(form, &mut env))
         } else {
             Err(Error::NotCallable)
         }
-    }
-
-    pub fn is_macro(&self) -> bool {
-        matches!(self.kind, FormKind::UserFn { is_macro: true, .. })
     }
 }
 
@@ -277,9 +273,11 @@ pub fn eval_ast(form: Form, env: &mut Env) -> Result<Form> {
     match form {
         Form {
             kind: FormKind::Symbol(Ident { name }),
+            ..
         } => Ok(env.get(&name)?),
         Form {
             kind: FormKind::List(inner),
+            ..
         } => {
             let evaluated = inner
                 .into_iter()
@@ -289,6 +287,7 @@ pub fn eval_ast(form: Form, env: &mut Env) -> Result<Form> {
         }
         Form {
             kind: FormKind::Vector(inner),
+            ..
         } => {
             let evaluated = inner
                 .into_iter()
@@ -298,6 +297,7 @@ pub fn eval_ast(form: Form, env: &mut Env) -> Result<Form> {
         }
         Form {
             kind: FormKind::HashMap(inner),
+            ..
         } => {
             let evaluated = inner
                 .into_iter()

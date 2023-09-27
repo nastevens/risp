@@ -19,9 +19,9 @@ fn main() {
 
     let mut env = Env::new();
     let args = Form::list(std::env::args().skip(1).map(|s| Form::string(s)));
-    env.set("*ARGV*", args);
+    env.set("*ARGV*", args.clone());
     risp::core::populate(&mut env);
-    let _ = read_eval("", &mut env);
+    let _ = read_eval(r#"(println (str "Mal [" *host-language* "]"))"#, &mut env);
     loop {
         match rl.readline("user> ") {
             Ok(line) if line.is_empty() => continue,

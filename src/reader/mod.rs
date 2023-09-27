@@ -65,9 +65,7 @@ fn read_nil<'a>(
 ) -> Option<Result<Form, Error>> {
     token_iter.next().map(|value| {
         assert_eq!(value, "nil");
-        Ok(Form {
-            kind: FormKind::Nil,
-        })
+        Ok(Form::nil())
     })
 }
 
@@ -84,11 +82,7 @@ fn read_bool<'a>(
 fn read_symbol<'a>(
     token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
 ) -> Option<Result<Form, Error>> {
-    token_iter.next().map(|name| {
-        Ok(Form {
-            kind: FormKind::Symbol(Ident::from_str(name)),
-        })
-    })
+    token_iter.next().map(|name| Ok(Form::symbol(name)))
 }
 
 fn read_number<'a>(
@@ -98,6 +92,7 @@ fn read_number<'a>(
         str::parse::<i64>(s)
             .map(|n| Form {
                 kind: FormKind::Integer(n),
+                meta: None,
             })
             .map_err(|_| Error::InvalidNumber(s.into()))
     })
@@ -119,6 +114,7 @@ fn read_string<'a>(
         let escaped = escape_replacment.replace_all(no_quotes, REPLACEMENTS);
         Ok(Form {
             kind: FormKind::String(escaped),
+            meta: None,
         })
     })
 }
@@ -130,6 +126,7 @@ fn read_keyword<'a>(
         let no_colon = name.chars().skip(1).collect::<String>();
         Ok(Form {
             kind: FormKind::Keyword(no_colon),
+            meta: None,
         })
     })
 }
@@ -141,6 +138,7 @@ fn reader_macro<'a>(
     token_iter.next();
     let mut values = vec![Form {
         kind: FormKind::Symbol(Ident::from_str(fnname)),
+        meta: None,
     }];
     match read_form(token_iter) {
         Some(Ok(form_result)) => values.push(form_result),
@@ -149,6 +147,7 @@ fn reader_macro<'a>(
     }
     Ok(Form {
         kind: FormKind::List(values),
+        meta: None,
     })
 }
 
@@ -158,12 +157,8 @@ fn meta_reader_macro<'a>(
     assert_eq!(token_iter.next(), Some("^"));
     let meta = read_form(token_iter).transpose()?.ok_or(Error::Eof)?;
     let form = read_form(token_iter).transpose()?.ok_or(Error::Eof)?;
-    let symbol = Form {
-        kind: FormKind::Symbol(Ident::from_str("with-meta")),
-    };
-    Ok(Form {
-        kind: FormKind::List(vec![symbol, form, meta]),
-    })
+    let symbol = Form::symbol("with-meta");
+    Ok(Form::list([symbol, form, meta]))
 }
 
 fn read_form<'a>(

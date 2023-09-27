@@ -39,21 +39,20 @@ impl Atom {
 
 impl From<Atom> for Form {
     fn from(atom: Atom) -> Form {
-        Form {
-            kind: FormKind::Atom(atom),
-        }
+        Form::atom(atom)
     }
 }
 
 #[derive(Clone, Hash, Eq, PartialEq)]
 pub struct Form {
     pub kind: FormKind,
+    pub meta: Option<Box<Form>>,
 }
 
 macro_rules! form_predicate_fn {
     ($method:ident, $kind:pat) => {
         pub fn $method(&self) -> bool {
-            matches!(self, Form { kind: $kind })
+            matches!(self, Form { kind: $kind, .. })
         }
     };
 }
@@ -69,54 +68,61 @@ impl Form {
     form_predicate_fn!(is_vector, FormKind::Vector(_));
     form_predicate_fn!(is_hash_map, FormKind::HashMap(_));
     form_predicate_fn!(is_native_fn, FormKind::NativeFn(_));
-    form_predicate_fn!(is_user_fn, FormKind::UserFn { .. });
     form_predicate_fn!(is_atom, FormKind::Atom(_));
 
     pub fn nil() -> Form {
         Form {
             kind: FormKind::Nil,
+            meta: None,
         }
     }
 
     pub fn boolean(value: bool) -> Form {
         Form {
             kind: FormKind::Boolean(value),
+            meta: None,
         }
     }
 
     pub fn symbol(name: &str) -> Form {
         Form {
             kind: FormKind::Symbol(Ident::from_str(name)),
+            meta: None,
         }
     }
 
     pub fn int(value: i64) -> Form {
         Form {
             kind: FormKind::Integer(value),
+            meta: None,
         }
     }
 
     pub fn float(value: f64) -> Form {
         Form {
             kind: FormKind::Float(value),
+            meta: None,
         }
     }
 
     pub fn string(value: impl Into<String>) -> Form {
         Form {
             kind: FormKind::String(value.into()),
+            meta: None,
         }
     }
 
     pub fn keyword(value: impl Into<String>) -> Form {
         Form {
             kind: FormKind::Keyword(value.into()),
+            meta: None,
         }
     }
 
     pub fn list(value: impl IntoIterator<Item = Form>) -> Form {
         Form {
             kind: FormKind::List(value.into_iter().collect()),
+            meta: None,
         }
     }
 
@@ -127,18 +133,21 @@ impl Form {
     pub fn vector(value: impl IntoIterator<Item = Form>) -> Form {
         Form {
             kind: FormKind::Vector(value.into_iter().collect()),
+            meta: None,
         }
     }
 
     pub fn hash_map(value: HashMap<Form, Form>) -> Form {
         Form {
             kind: FormKind::HashMap(value),
+            meta: None,
         }
     }
 
     pub fn native_fn(f: &'static dyn Fn(Form) -> Result<Form>) -> Form {
         Form {
             kind: FormKind::NativeFn(f),
+            meta: None,
         }
     }
 
@@ -151,12 +160,14 @@ impl Form {
                 env,
                 is_macro: false,
             },
+            meta: None,
         }
     }
 
     pub fn atom(atom: Atom) -> Form {
         Form {
             kind: FormKind::Atom(atom),
+            meta: None,
         }
     }
 
@@ -169,6 +180,7 @@ impl Form {
                 env,
                 is_macro: true,
             },
+            meta: None,
         }
     }
 
@@ -211,7 +223,16 @@ impl Form {
     pub fn empty_list() -> Form {
         Form {
             kind: FormKind::List(vec![]),
+            meta: None,
         }
+    }
+
+    pub fn is_macro(&self) -> bool {
+        matches!(self.kind, FormKind::UserFn { is_macro: true, .. })
+    }
+
+    pub fn is_user_fn(&self) -> bool {
+        matches!(self.kind, FormKind::UserFn { is_macro: false, .. })
     }
 }
 

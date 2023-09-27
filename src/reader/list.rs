@@ -46,21 +46,13 @@ impl ListInner {
 pub fn read_list<'a>(
     token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
 ) -> Option<Result<Form, Error>> {
-    ListInner::new("(", ")").read(token_iter, |values| {
-        Ok(Form {
-            kind: FormKind::List(values),
-        })
-    })
+    ListInner::new("(", ")").read(token_iter, |values| Ok(Form::list(values)))
 }
 
 pub fn read_vector<'a>(
     token_iter: &mut Peekable<impl Iterator<Item = &'a str>>,
 ) -> Option<Result<Form, Error>> {
-    ListInner::new("[", "]").read(token_iter, |values| {
-        Ok(Form {
-            kind: FormKind::Vector(values),
-        })
-    })
+    ListInner::new("[", "]").read(token_iter, |values| Ok(Form::vector(values)))
 }
 
 pub fn read_hash_map<'a>(
@@ -72,6 +64,7 @@ pub fn read_hash_map<'a>(
         } else {
             Ok(Form {
                 kind: FormKind::HashMap(values.into_iter().tuples().collect()),
+                meta: None,
             })
         }
     })

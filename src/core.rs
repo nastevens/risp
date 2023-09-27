@@ -57,6 +57,17 @@ pub fn populate(env: &mut Env) {
             ("contains?", Form::native_fn(&contains)),
             ("keys", Form::native_fn(&keys)),
             ("vals", Form::native_fn(&vals)),
+            ("readline", Form::native_fn(&readline)),
+            ("time-ms", Form::native_fn(&time_ms)),
+            ("meta", Form::native_fn(&meta)),
+            ("with-meta", Form::native_fn(&with_meta)),
+            ("fn?", Form::native_fn(&is_fn)),
+            ("string?", Form::native_fn(&is_string)),
+            ("number?", Form::native_fn(&is_number)),
+            ("macro?", Form::native_fn(&is_macro)),
+            ("seq", Form::native_fn(&seq)),
+            ("conj", Form::native_fn(&conj)),
+            ("*host-language*", Form::string("rust.2")),
         ]
         .into_iter()
         .map(|(symbol, func)| (symbol.to_string(), func)),
@@ -356,6 +367,7 @@ fn hash_map(params: Form) -> Result<Form> {
     } else {
         Ok(Form {
             kind: FormKind::HashMap(args.into_iter().tuples().collect()),
+            meta: None,
         })
     }
 }
@@ -401,6 +413,86 @@ fn keys(params: Form) -> Result<Form> {
 fn vals(params: Form) -> Result<Form> {
     let (map,): (HashMap<Form, Form>,) = params.try_into()?;
     Ok(Form::list(map.into_values()))
+}
+
+fn readline(_params: Form) -> Result<Form> {
+    Err(crate::Error::InvalidArgument)
+}
+
+fn time_ms(_params: Form) -> Result<Form> {
+    let ts = nix::time::clock_gettime(nix::time::ClockId::CLOCK_MONOTONIC).unwrap();
+    let millis = ts.tv_sec() * 1000 + ts.tv_nsec() / 1_000_000;
+    Ok(Form::int(millis))
+}
+
+fn meta(params: Form) -> Result<Form> {
+    let (arg,): (Form,) = params.try_into()?;
+    Ok(arg.meta.map(|meta| *meta.clone()).unwrap_or(Form::nil()))
+}
+
+fn with_meta(params: Form) -> Result<Form> {
+    let (mut target, meta): (Form, Form) = params.try_into()?;
+    if target.is_list()
+        || target.is_vector()
+        || target.is_hash_map()
+        || target.is_user_fn()
+        || target.is_native_fn()
+    {
+        target.meta = Some(Box::new(meta));
+        Ok(target)
+    } else {
+        Err(crate::Error::InvalidArgument)
+    }
+}
+
+fn is_fn(params: Form) -> Result<Form> {
+    let (arg,): (Form,) = params.try_into()?;
+    Ok(Form::boolean(arg.is_user_fn() || arg.is_native_fn()))
+}
+
+fn is_macro(params: Form) -> Result<Form> {
+    let (arg,): (Form,) = params.try_into()?;
+    Ok(Form::boolean(arg.is_macro()))
+}
+
+fn is_string(params: Form) -> Result<Form> {
+    let (arg,): (Form,) = params.try_into()?;
+    Ok(Form::boolean(arg.is_string()))
+}
+
+fn is_number(params: Form) -> Result<Form> {
+    let (arg,): (Form,) = params.try_into()?;
+    Ok(Form::boolean(arg.is_number()))
+}
+
+fn seq(params: Form) -> Result<Form> {
+    let (arg,): (Form,) = params.try_into()?;
+    match arg.kind {
+        FormKind::Nil => Ok(Form::nil()),
+        FormKind::List(ref list) if list.is_empty() => Ok(Form::nil()),
+        FormKind::List(list) => Ok(Form::list(list)),
+        FormKind::String(ref s) if s.is_empty() => Ok(Form::nil()),
+        FormKind::String(ref s) => Ok(Form::list(s.chars().map(|c| Form::string(c)))),
+        FormKind::Vector(ref vec) if vec.is_empty() => Ok(Form::nil()),
+        FormKind::Vector(vec) => Ok(Form::list(vec.into_iter())),
+        _ => Err(crate::Error::InvalidArgument),
+    }
+}
+
+fn conj(params: Form) -> Result<Form> {
+    let (collection, mut rest): (Form, Rest) = params.try_into()?;
+    match collection.kind {
+        FormKind::List(list) => {
+            rest.values.reverse();
+            rest.values.extend(list);
+            Ok(Form::list(rest.values))
+        }
+        FormKind::Vector(mut vec) => {
+            vec.extend(rest.values);
+            Ok(Form::vector(vec))
+        }
+        _ => Err(crate::Error::InvalidArgument),
+    }
 }
 
 fn _template(_params: Form) -> Result<Form> {
